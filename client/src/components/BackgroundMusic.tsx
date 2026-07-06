@@ -6,55 +6,74 @@ const backgroundTrack = '/music/background.mp3';
 
 export function BackgroundMusic() {
   const { t } = useTranslation();
-  const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  // try autoplay + fallback unlock
   useEffect(() => {
     const audio = audioRef.current;
-
-    return () => {
-      audio?.pause();
-    };
-  }, []);
-
-  const startMusic = async () => {
-    const audio = audioRef.current;
-
-    if (!audio) {
-      return;
-    }
+    if (!audio) return;
 
     audio.volume = 0.4;
 
-    try {
-      await audio.play();
-      setIsPlaying(true);
-    } catch {
-      setIsPlaying(false);
-    }
-  };
+    const tryPlay = async () => {
+      try {
+        await audio.play();
+        setIsPlaying(true);
+      } catch {
+        setIsPlaying(false);
+      }
+    };
 
-  const stopMusic = () => {
-    audioRef.current?.pause();
-    setIsPlaying(false);
-  };
+    tryPlay();
 
-  const toggleMusic = () => {
+    const unlockAudio = () => {
+      if (!audioRef.current) return;
+
+      audioRef.current.play()
+        .then(() => setIsPlaying(true))
+        .catch(() => setIsPlaying(false));
+
+      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
+    };
+
+    window.addEventListener('click', unlockAudio);
+    window.addEventListener('touchstart', unlockAudio);
+
+    return () => {
+      audio.pause();
+      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
+    };
+  }, []);
+
+  const toggleMusic = async () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
     if (isPlaying) {
-      stopMusic();
-      return;
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      try {
+        await audio.play();
+        setIsPlaying(true);
+      } catch {
+        setIsPlaying(false);
+      }
     }
-
-    startMusic();
   };
 
   return (
     <>
-      <audio ref={audioRef} src={backgroundTrack} loop preload="none" />
+      <audio ref={audioRef} src={backgroundTrack} loop preload="auto" />
+
       <button
         type="button"
         onClick={toggleMusic}
-        className="fixed bottom-5 right-5 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-gold/30 bg-white/85 text-gold shadow-lg shadow-charcoal/10 backdrop-blur transition-all hover:-translate-y-0.5 hover:bg-ivory focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+        className="fixed bottom-5 right-5 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-gold/30 bg-white/85 text-gold shadow-lg backdrop-blur transition-all hover:-translate-y-0.5 hover:bg-ivory"
         aria-label={isPlaying ? t('music.pause') : t('music.play')}
         title={isPlaying ? t('music.pause') : t('music.play')}
       >

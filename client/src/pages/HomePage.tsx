@@ -65,9 +65,9 @@ export function HomePage() {
                 <Heart className="h-8 w-8 text-gold fill-gold/30" />
               </div>
               <p className="text-sm uppercase tracking-[0.35em] text-sage">{t('hero.together')}</p>
-              <h2 className="mt-3 font-serif text-4xl text-charcoal sm:text-5xl">Sanja & Angelcho</h2>
+              <h2 className="mt-3 font-serif text-4xl text-charcoal sm:text-5xl">{t('names.sanja')} & {t('names.angelcho')}</h2>
               <p className="mt-3 text-lg text-muted">{t('hero.invite')}</p>
-              <p className="mt-2 font-serif text-2xl text-gold">10.10.2026 · Ohrid</p>
+              <p className="mt-2 font-serif text-2xl text-gold">10.10.2026 · {t('ohrid')}</p>
               <button
                 type="button"
                 onClick={beginExperience}
@@ -104,11 +104,11 @@ export function HomePage() {
             </div>
 
             <h1 className="mb-2 font-serif text-5xl leading-none text-charcoal sm:text-7xl md:text-8xl">
-              Sanja
+              {t('names.sanja')}
             </h1>
             <p className="my-2 font-serif text-3xl text-gold italic sm:text-4xl">&</p>
             <h1 className="mb-8 font-serif text-5xl leading-none text-charcoal sm:text-7xl md:text-8xl">
-              Angelcho
+              {t('names.angelcho')}
             </h1>
 
             <p className="mx-auto mb-4 max-w-md text-lg font-light leading-relaxed text-muted sm:text-xl lg:mx-0">
@@ -145,7 +145,7 @@ export function HomePage() {
               <div className="mt-4 flex items-center justify-between rounded-[1.25rem] bg-ivory/80 px-4 py-3">
                 <div>
                   <p className="text-sm uppercase tracking-[0.3em] text-sage">{t('hero.together')}</p>
-                  <p className="font-serif text-xl text-charcoal">10.10.2026 · Ohrid</p>
+                  <p className="font-serif text-xl text-charcoal">10.10.2026 · {t('ohrid')}</p>
                 </div>
                 
               </div>

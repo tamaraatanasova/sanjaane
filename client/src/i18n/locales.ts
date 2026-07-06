@@ -1,4 +1,9 @@
 export const mk = {
+  names: {
+    sanja: 'Сања',
+    angelcho: 'Ангелчо',
+  },
+  ohrid: 'Охрид',
   nav: {
     home: 'Почетна',
     details: 'Детали',
@@ -7,7 +12,7 @@ export const mk = {
   },
   hero: {
     together: 'Заедно со љубов',
-    invite: 'Со радост ве покануваме на нашата свадба',
+    invite: 'Со радост ве покануваме на нашата свадбена веселба',
     date: '10 октомври 2026',
     cta: 'Потврди присуство',
     details: 'Детали за денот',
@@ -35,12 +40,11 @@ export const mk = {
     dressCodeText: 'Елегантно / формално облекување',
     schedule: 'Распоред',
     scheduleItems: [
-      { time: '14:30', event: 'Собирање на гостите' },
-      { time: '15:00', event: 'Церемонија' },
-      { time: '16:30', event: 'Фотографирање' },
-      { time: '18:00', event: 'Коктел & прием' },
-      { time: '20:00', event: 'Вечера' },
-      { time: '22:00', event: 'Забава & танцување' },
+      { time: '14:00', event: 'Собирање на гостите' },
+      { time: '16:00', event: 'Црквена церемонија' },
+      { time: '17:30', event: 'Церемонија' },
+      { time: '18:30', event: 'Коктел & прием' },
+
     ],
     map: 'Локација',
     mapNote: 'Паркинг е достапен на локацијата на приемот.',
@@ -88,7 +92,7 @@ export const mk = {
   },
   footer: {
     love: 'Со љубов',
-    names: 'Sanja & Angelcho',
+    names: 'Сања & Ангелчо',
   },
   music: {
     play: 'Пушти музика',
@@ -195,6 +199,11 @@ export const mk = {
 };
 
 export const hr = {
+  names: {
+    sanja: 'Sanja',
+    angelcho: 'Angelcho',
+  },
+  ohrid: 'Ohrid',
   nav: {
     home: 'Početna',
     details: 'Detalji',
@@ -220,7 +229,7 @@ export const hr = {
     title: 'Detalji dana',
     subtitle: 'Sve što trebate znati o našem posebnom danu',
     ceremony: 'Ceremonija',
-    ceremonyTime: '15:00',
+    ceremonyTime: '16:00',
     ceremonyPlace: 'Crkva sv. Klementa Ohridskog',
     ceremonyAddress: 'Ohrid, Sjeverna Makedonija',
     reception: 'Svečana večera',
@@ -231,12 +240,10 @@ export const hr = {
     dressCodeText: 'Elegantno / formalno odijevanje',
     schedule: 'Raspored',
     scheduleItems: [
-      { time: '14:30', event: 'Okupljanje gostiju' },
-      { time: '15:00', event: 'Ceremonija' },
-      { time: '16:30', event: 'Fotografiranje' },
-      { time: '18:00', event: 'Koktel & prijem' },
-      { time: '20:00', event: 'Večera' },
-      { time: '22:00', event: 'Zabava & ples' },
+      { time: '14:00', event: 'Okupljanje gostiju' },
+      { time: '16:00', event: 'Crkvena ceremonija' },
+      { time: '17:30', event: 'Ceremonija' },
+      { time: '18:30', event: 'Koktel & prijem' },
     ],
     map: 'Lokacija',
     mapNote: 'Parking je dostupan na lokaciji svečane večere.',
