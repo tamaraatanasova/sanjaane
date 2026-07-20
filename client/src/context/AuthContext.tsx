@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { api } from '../lib/api';
 import type { AuthUser } from '../lib/api';
-import { supabase } from '../lib/supabase';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -31,18 +30,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (mounted) setLoading(false);
       });
 
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user.email ? {
-        id: session.user.id,
-        email: session.user.email,
-        role: 'admin',
-      } : null);
-      setLoading(false);
-    });
-
     return () => {
       mounted = false;
-      data.subscription.unsubscribe();
     };
   }, []);
 

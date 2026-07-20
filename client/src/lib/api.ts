@@ -60,6 +60,38 @@ export interface AuthUser {
   role: 'admin';
 }
 
+const HARDCODED_ADMIN_EMAIL = 'sanja@admin.com';
+const HARDCODED_ADMIN_PASSWORD = 'sanja';
+const ADMIN_SESSION_STORAGE_KEY = 'admin-auth-session';
+
+function getStoredAdminSession(): AuthUser | null {
+  if (typeof window === 'undefined') return null;
+
+  const stored = window.localStorage.getItem(ADMIN_SESSION_STORAGE_KEY);
+  if (!stored) return null;
+
+  try {
+    const parsed = JSON.parse(stored) as Partial<AuthUser>;
+    if (parsed.id && parsed.email && parsed.role === 'admin') {
+      return parsed as AuthUser;
+    }
+  } catch {
+    window.localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+  }
+
+  return null;
+}
+
+function setStoredAdminSession(user: AuthUser) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(user));
+}
+
+function clearStoredAdminSession() {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+}
+
 const emptyGroupStats = (): GroupStats => ({
   total: 0,
   attending: 0,
@@ -159,47 +191,34 @@ export const api = {
   },
 
   async login(email: string, password: string) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const normalizedEmail = email.trim().toLowerCase();
 
-    if (error) {
-      throw new Error(error.message);
+    if (normalizedEmail === HARDCODED_ADMIN_EMAIL && password === HARDCODED_ADMIN_PASSWORD) {
+      const user: AuthUser = {
+        id: 'hardcoded-admin',
+        email: HARDCODED_ADMIN_EMAIL,
+        role: 'admin',
+      };
+
+      setStoredAdminSession(user);
+      return { user };
     }
 
-    if (!data.user.email) {
-      throw new Error('Missing user email');
-    }
-
-    return {
-      user: {
-        id: data.user.id,
-        email: data.user.email,
-        role: 'admin' as const,
-      },
-    };
+    throw new Error('Invalid credentials');
   },
 
   async logout() {
-    const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      throw new Error(error.message);
-    }
+    clearStoredAdminSession();
   },
 
   async me() {
-    const { data, error } = await supabase.auth.getUser();
+    const user = getStoredAdminSession();
 
-    if (error || !data.user?.email) {
-      throw new Error(error?.message || 'Not authenticated');
+    if (!user) {
+      throw new Error('Not authenticated');
     }
 
-    return {
-      user: {
-        id: data.user.id,
-        email: data.user.email,
-        role: 'admin' as const,
-      },
-    };
+    return { user };
   },
 
   async getStats(): Promise<Stats> {
