@@ -2,34 +2,32 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Lock, Heart } from 'lucide-react';
-// import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 
 export function AdminLoginPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  // const { login } = useAuth();
+  const { login } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-const handleSubmit = async (e: FormEvent) => {
-  e.preventDefault();
-  setLoading(true);
-  setError('');
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
 
-  try {
-    if (email === 'sanja@amin.com' && password === 'sanja') {
-      localStorage.setItem('admin-auth', 'true');
+    try {
+      await login(email, password);
       navigate('/admin', { replace: true });
-    } else {
-      setError('Invalid email or password');
+    } catch {
+      setError(t('admin.loginError'));
+    } finally {
+      setLoading(false);
     }
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-gradient-to-b from-ivory to-cream">
