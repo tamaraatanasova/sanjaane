@@ -320,6 +320,11 @@ function BoardingPassport({
             <PassportInfo icon={<MapPin className="h-4 w-4" />} label={t('rsvp.passport.destination')} value={t('rsvp.passport.destinationValue')} />
             <PassportInfo icon={<Users className="h-4 w-4" />} label={t('rsvp.passport.transport')} value={transportLabel} />
           </div>
+          <div className="mt-8 rounded-xl border border-gold/20 bg-cream/50 px-5 py-4 text-center">
+  <p className="font-serif text-lg italic text-charcoal">
+    {t('rsvp.passport.message')}
+  </p>
+</div>
         </div>
 
         <div className="relative flex flex-col justify-between border-t border-dashed border-gold/35 bg-ivory p-6 md:border-l md:border-t-0">
@@ -362,6 +367,7 @@ function PassportInfo({
         <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted">{label}</p>
         <p className="mt-1 text-sm font-semibold text-charcoal">{value}</p>
       </div>
+      
     </div>
   );
 }

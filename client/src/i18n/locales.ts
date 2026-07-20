@@ -72,6 +72,7 @@ export const mk = {
     error: 'Нешто тргна наопаку. Обидете се повторно.',
     required: 'Задолжително поле',
     passport: {
+      message:" Љубовта е причина, а Вие сте нашите драги гости.",
       eyebrow: 'Свадбен билет',
       title: 'Boarding pass',
       passenger: 'Патник',
@@ -215,7 +216,7 @@ export const hr = {
     admin: 'Admin',
   },
   hero: {
-    together: 'Zajedno s ljubavlju',
+    together: 'Zajedno je naše omiljeno mjesto.',
     invite: 'S radosću vas pozivamo na naše vjenčanje',
     date: '10. listopada 2026.',
     cta: 'Potvrdi dolazak',
@@ -275,6 +276,7 @@ export const hr = {
     error: 'Nešto je pošlo po krivu. Pokušajte ponovno.',
     required: 'Obavezno polje',
     passport: {
+      message:" Ljubav je razlog, a Vi ste naši dragi gosti.",
       eyebrow: 'Vjenčana karta',
       title: 'Boarding pass',
       passenger: 'Putnik',

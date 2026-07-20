@@ -14,20 +14,22 @@ export function AdminLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+const handleSubmit = async (e: FormEvent) => {
+  e.preventDefault();
+  setLoading(true);
+  setError('');
 
-    try {
-      await login(email, password);
+  try {
+    if (email === 'sanja@amin.com' && password === 'sanja') {
+      localStorage.setItem('admin-auth', 'true');
       navigate('/admin', { replace: true });
-    } catch {
-      setError(t('admin.loginError'));
-    } finally {
-      setLoading(false);
+    } else {
+      setError('Invalid email or password');
     }
-  };
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-gradient-to-b from-ivory to-cream">
