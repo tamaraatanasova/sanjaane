@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 export function AdminLoginPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { login } = useAuth();
+  // const { login } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
