@@ -13,6 +13,7 @@ export const mk = {
   hero: {
     together: 'Заедно со љубов',
     invite: 'Со радост ве покануваме на нашата свадбена веселба',
+    invite2: 'Заедно со љубов',
     date: '10 октомври 2026',
     cta: 'Потврди присуство',
     details: 'Детали за денот',
@@ -217,7 +218,8 @@ export const hr = {
   },
   hero: {
     together: 'Zajedno je naše omiljeno mjesto.',
-    invite: 'S radosću vas pozivamo na naše vjenčanje',
+    invite: 'S radošću vas pozivamo na naše vjenčanje',
+    invite2: 'Zajedno s ljubavlju',
     date: '10. listopada 2026.',
     cta: 'Potvrdi dolazak',
     details: 'Detalji dana',
