@@ -111,9 +111,9 @@ export function HomePage() {
               {t('names.angelcho')}
             </h1>
 
-            <p className="mx-auto mb-4 max-w-md text-lg font-light leading-relaxed text-muted sm:text-xl lg:mx-0">
+            {/* <p className="mx-auto mb-4 max-w-md text-lg font-light leading-relaxed text-muted sm:text-xl lg:mx-0">
               {t('hero.invite2')}
-            </p>
+            </p> */}
 
             <p className="mb-10 font-serif text-2xl tracking-wide text-gold sm:text-3xl">
               {t('hero.date')}
