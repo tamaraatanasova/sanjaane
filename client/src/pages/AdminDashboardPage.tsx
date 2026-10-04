@@ -18,6 +18,7 @@ type AdminForm = {
   guest_count: number;
   language: 'mk' | 'hr';
   transport: 'organized' | 'own';
+  table_number: string;
   additional_guests: AdditionalGuest[];
   dietary_notes: string;
   message: string;
@@ -31,6 +32,7 @@ const emptyForm = (): AdminForm => ({
   guest_count: 1,
   language: 'mk',
   transport: 'organized',
+  table_number: '',
   additional_guests: [],
   dietary_notes: '',
   message: '',
@@ -135,6 +137,7 @@ export function AdminDashboardPage() {
       guest_count: rsvp.guest_count,
       language: rsvp.language,
       transport: rsvp.transport ?? 'organized',
+      table_number: rsvp.table_number ?? '',
       additional_guests: createAdditionalGuests(rsvp.guest_count, rsvp.additional_guests),
       dietary_notes: rsvp.dietary_notes ?? '',
       message: rsvp.message ?? '',
@@ -155,6 +158,7 @@ export function AdminDashboardPage() {
       guest_count: form.attending ? form.guest_count : 1,
       language: form.language,
       transport: form.attending ? form.transport : null,
+      table_number: form.table_number,
       additional_guests: form.attending ? form.additional_guests : [],
       dietary_notes: form.dietary_notes.trim() || undefined,
       message: form.message.trim() || undefined,
@@ -585,6 +589,15 @@ function AdminFormPanel({
                 </Toggle>
               </div>
             </Field>
+
+            <Field label={t('adminDashboard.tableNumber')}>
+              <input
+                value={form.table_number}
+                onChange={(event) => setForm((current) => ({ ...current, table_number: event.target.value }))}
+                placeholder={t('adminDashboard.tableNumberPlaceholder')}
+                className="admin-input"
+              />
+            </Field>
           </>
         )}
 
@@ -721,6 +734,7 @@ function RsvpRow({
             <Detail label={t('adminDashboard.confirmation')} value={rsvp.attending === 1 ? t('adminDashboard.yes') : t('adminDashboard.no')} />
             <Detail label={t('adminDashboard.group')} value={rsvp.language === 'mk' ? t('adminDashboard.macedonian') : t('adminDashboard.croatian')} />
             <Detail label={t('adminDashboard.transport')} value={transportLabel(rsvp.transport, t)} />
+            <Detail label={t('adminDashboard.tableNumber')} value={rsvp.table_number || '-'} />
             <Detail label={t('adminDashboard.guestCount')} value={String(rsvp.guest_count)} />
             <Detail label={t('adminDashboard.phone')} value={rsvp.phone || '-'} />
             <Detail label={t('admin.date')} value={new Date(rsvp.created_at).toLocaleDateString()} />

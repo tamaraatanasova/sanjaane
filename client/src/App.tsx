@@ -7,6 +7,7 @@ import { DetailsPage } from './pages/DetailsPage';
 import { RsvpPage } from './pages/RsvpPage';
 import { AdminLoginPage } from './pages/AdminLoginPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
+import { SpecialDayPage } from './pages/SpecialDayPage';
 
 function PublicLayout({ children }: { children: React.ReactNode }) {
   return <Layout>{children}</Layout>;
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/" element={<PublicLayout><HomePage /></PublicLayout>} />
           <Route path="/details" element={<PublicLayout><DetailsPage /></PublicLayout>} />
           <Route path="/rsvp" element={<PublicLayout><RsvpPage /></PublicLayout>} />
+          <Route path="/poseben-den" element={<SpecialDayPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route
             path="/admin"

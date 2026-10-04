@@ -9,6 +9,7 @@ export interface RsvpData {
   guest_count: number;
   language: 'mk' | 'hr';
   transport: 'organized' | 'own' | null;
+  table_number: string | null;
   additional_guests: AdditionalGuest[];
   dietary_notes: string | null;
   message: string | null;
@@ -29,6 +30,7 @@ export interface RsvpFormData {
   guest_count: number;
   language: 'mk' | 'hr';
   transport?: 'organized' | 'own' | null;
+  table_number?: string;
   additional_guests?: AdditionalGuest[];
   dietary_notes?: string;
   message?: string;
@@ -112,6 +114,7 @@ function toRsvpData(row: {
   guest_count: number;
   language?: 'mk' | 'hr' | null;
   transport?: 'organized' | 'own' | null;
+  table_number?: string | null;
   additional_guests?: AdditionalGuest[] | null;
   dietary_notes: string | null;
   message: string | null;
@@ -125,6 +128,7 @@ function toRsvpData(row: {
     attending: row.attending ? 1 : 0,
     language: inferredLanguage,
     transport: row.transport ?? inferTransport(row.dietary_notes),
+    table_number: row.table_number ?? null,
     additional_guests: Array.isArray(row.additional_guests) && row.additional_guests.length > 0
       ? row.additional_guests
       : parseAdditionalGuests(row.message),
@@ -176,6 +180,7 @@ export const api = {
         guest_count: data.guest_count,
         language: data.language,
         transport: data.attending ? data.transport ?? null : null,
+        table_number: data.table_number?.trim() || null,
         additional_guests: data.attending ? data.additional_guests ?? [] : [],
         dietary_notes: data.dietary_notes ?? null,
         message: data.message ?? null,
@@ -280,6 +285,25 @@ export const api = {
     return { rsvps };
   },
 
+  async findGuestTable(name: string) {
+    const term = name.trim();
+    if (!term) return [];
+
+    const { data, error } = await supabase
+      .from('rsvps')
+      .select('full_name, table_number')
+      .eq('attending', true)
+      .not('table_number', 'is', null)
+      .ilike('full_name', `%${term}%`)
+      .limit(5);
+
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((guest) => ({
+      fullName: guest.full_name,
+      tableNumber: guest.table_number as string,
+    }));
+  },
+
   async updateRsvp(id: number, data: RsvpFormData) {
     const { data: updated, error } = await supabase
       .from('rsvps')
@@ -291,6 +315,7 @@ export const api = {
         guest_count: data.guest_count,
         language: data.language,
         transport: data.attending ? data.transport ?? null : null,
+        table_number: data.table_number?.trim() || null,
         additional_guests: data.attending ? data.additional_guests ?? [] : [],
         dietary_notes: data.dietary_notes ?? null,
         message: data.message ?? null,

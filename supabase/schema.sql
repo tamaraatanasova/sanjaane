@@ -7,6 +7,7 @@ create table if not exists public.rsvps (
   guest_count integer not null default 1 check (guest_count >= 1 and guest_count <= 10),
   language text not null default 'mk' check (language in ('mk', 'hr')),
   transport text check (transport in ('organized', 'own')),
+  table_number text,
   additional_guests jsonb not null default '[]'::jsonb,
   dietary_notes text,
   message text,
@@ -22,6 +23,9 @@ alter table public.rsvps
 
 alter table public.rsvps
   add column if not exists additional_guests jsonb not null default '[]'::jsonb;
+
+alter table public.rsvps
+  add column if not exists table_number text;
 
 create index if not exists rsvps_language_idx on public.rsvps (language);
 create index if not exists rsvps_transport_idx on public.rsvps (transport);
