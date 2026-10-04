@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Bus, Check, ChevronDown, ChevronUp, LogOut, Pencil, Plus, Search, Trash2, Users, X } from 'lucide-react';
 import { api } from '../lib/api';
-import type { AdditionalGuest, RsvpData, RsvpFormData, Stats } from '../lib/api';
+import type { AdditionalGuest, EventTable, RsvpData, RsvpFormData, Stats } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
 type StatusFilter = 'all' | 'attending' | 'declined';
@@ -55,6 +55,7 @@ export function AdminDashboardPage() {
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [rsvps, setRsvps] = useState<RsvpData[]>([]);
+  const [eventTables, setEventTables] = useState<EventTable[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [languageFilter, setLanguageFilter] = useState<LanguageFilter>('all');
@@ -76,8 +77,18 @@ export function AdminDashboardPage() {
         api.getRsvps(),
       ]);
 
+      // Keep the existing dashboard usable until the table migration has been
+      // applied; table creation itself will then show the database error.
+      let tableData: EventTable[] = [];
+      try {
+        tableData = await api.getEventTables();
+      } catch {
+        tableData = [];
+      }
+
       setStats(statsData);
       setRsvps(rsvpData.rsvps);
+      setEventTables(tableData);
     } catch {
       navigate('/admin/login', { replace: true });
     } finally {
@@ -188,6 +199,16 @@ export function AdminDashboardPage() {
     await load();
   };
 
+  const createTable = async (tableNumber: string) => {
+    await api.createEventTable(tableNumber);
+    await load();
+  };
+
+  const assignTable = async (id: number, tableNumber: string | null) => {
+    await api.assignTable(id, tableNumber);
+    await load();
+  };
+
   return (
     <div className="min-h-screen bg-[#f6f4ef] text-charcoal">
       <header className="sticky top-0 z-40 border-b border-black/10 bg-white/95">
@@ -236,6 +257,13 @@ export function AdminDashboardPage() {
         ) : (
           <div className="space-y-6">
             {stats && <DashboardStats stats={stats} />}
+
+            <TableAssignmentPanel
+              tables={eventTables}
+              rsvps={rsvps}
+              onCreateTable={createTable}
+              onAssign={assignTable}
+            />
 
             <section className="grid gap-4 lg:grid-cols-[320px_1fr]">
               <AdminFormPanel
@@ -353,6 +381,155 @@ function DashboardStats({ stats }: { stats: Stats }) {
       <div className="grid gap-3 md:grid-cols-2">
         <GroupPanel title={t('adminDashboard.macedonianGuests')} stats={stats.mk} />
         <GroupPanel title={t('adminDashboard.croatianGuests')} stats={stats.hr} />
+      </div>
+    </section>
+  );
+}
+
+function TableAssignmentPanel({
+  tables,
+  rsvps,
+  onCreateTable,
+  onAssign,
+}: {
+  tables: EventTable[];
+  rsvps: RsvpData[];
+  onCreateTable: (tableNumber: string) => Promise<void>;
+  onAssign: (id: number, tableNumber: string | null) => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const [newTable, setNewTable] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const attending = useMemo(() => rsvps.filter((rsvp) => rsvp.attending === 1), [rsvps]);
+  const tableNumbers = useMemo(() => {
+    const values = new Set(tables.map((table) => table.table_number));
+    attending.forEach((rsvp) => {
+      if (rsvp.table_number) values.add(rsvp.table_number);
+    });
+    return [...values].sort((first, second) => first.localeCompare(second, undefined, { numeric: true }));
+  }, [attending, tables]);
+
+  const createTable = async () => {
+    const number = newTable.trim();
+    if (!number) return;
+    setSaving(true);
+    setError('');
+    try {
+      await onCreateTable(number);
+      setNewTable('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('adminDashboard.tableSaveError'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const assign = async (id: number, tableNumber: string) => {
+    setSaving(true);
+    setError('');
+    try {
+      await onAssign(id, tableNumber || null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('adminDashboard.tableSaveError'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="rounded-lg border border-black/10 bg-white">
+      <div className="flex flex-col gap-3 border-b border-black/10 px-4 py-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold">{t('adminDashboard.tableAssignments')}</h2>
+          <p className="mt-1 text-sm text-muted">{t('adminDashboard.tableAssignmentsDescription')}</p>
+        </div>
+        <div className="flex gap-2">
+          <input
+            value={newTable}
+            onChange={(event) => setNewTable(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Enter') void createTable(); }}
+            placeholder={t('adminDashboard.newTablePlaceholder')}
+            className="h-10 w-36 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-gold"
+          />
+          <button
+            type="button"
+            onClick={() => void createTable()}
+            disabled={saving || !newTable.trim()}
+            className="inline-flex items-center gap-2 rounded-md bg-charcoal px-3 py-2 text-sm text-white hover:bg-black disabled:opacity-60"
+          >
+            <Plus className="h-4 w-4" />
+            {t('adminDashboard.addTable')}
+          </button>
+        </div>
+      </div>
+
+      {error && <p className="mx-4 mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+      <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div>
+          {tableNumbers.length === 0 ? (
+            <p className="rounded-md bg-[#f6f4ef] p-4 text-sm text-muted">{t('adminDashboard.noTables')}</p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {tableNumbers.map((tableNumber) => {
+                const guests = attending.filter((rsvp) => rsvp.table_number === tableNumber);
+                const guestTotal = guests.reduce((sum, rsvp) => sum + rsvp.guest_count, 0);
+                return (
+                  <article key={tableNumber} className="rounded-md border border-black/10">
+                    <div className="flex items-center justify-between border-b border-black/10 bg-[#fbfaf7] px-3 py-2">
+                      <h3 className="font-semibold">{t('adminDashboard.tableLabel', { number: tableNumber })}</h3>
+                      <span className="text-xs text-muted">{t('adminDashboard.tableGuestTotal', { count: guestTotal })}</span>
+                    </div>
+                    {guests.length === 0 ? (
+                      <p className="p-3 text-sm text-muted">{t('adminDashboard.emptyTable')}</p>
+                    ) : (
+                      <ul className="divide-y divide-black/10">
+                        {guests.map((rsvp) => (
+                          <li key={rsvp.id} className="p-3 text-sm">
+                            <p className="font-medium">{rsvp.full_name}</p>
+                            {rsvp.additional_guests.map((guest, index) => (
+                              <p key={`${rsvp.id}-${index}`} className="mt-1 pl-3 text-muted">
+                                {guest.fullName || t('adminDashboard.guestNumber', { number: index + 2 })}
+                                {guest.isChild ? ` · ${t('adminDashboard.child').toLowerCase()}` : ''}
+                              </p>
+                            ))}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <aside className="rounded-md bg-[#f6f4ef] p-3">
+          <h3 className="text-sm font-semibold">{t('adminDashboard.assignGuests')}</h3>
+          <p className="mt-1 text-xs text-muted">{t('adminDashboard.assignGuestsDescription')}</p>
+          <div className="mt-3 space-y-2">
+            {attending.length === 0 ? (
+              <p className="text-sm text-muted">{t('adminDashboard.noConfirmedGuests')}</p>
+            ) : attending.map((rsvp) => (
+              <label key={rsvp.id} className="block rounded-md bg-white p-2">
+                <span className="mb-1 block text-sm font-medium">{rsvp.full_name}</span>
+                <select
+                  value={rsvp.table_number ?? ''}
+                  onChange={(event) => void assign(rsvp.id, event.target.value)}
+                  disabled={saving}
+                  className="h-9 w-full rounded-md border border-black/10 bg-white px-2 text-sm outline-none focus:border-gold disabled:opacity-60"
+                >
+                  <option value="">{t('adminDashboard.unassigned')}</option>
+                  {tableNumbers.map((tableNumber) => (
+                    <option key={tableNumber} value={tableNumber}>{t('adminDashboard.tableLabel', { number: tableNumber })}</option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+        </aside>
       </div>
     </section>
   );

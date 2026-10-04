@@ -22,6 +22,12 @@ export interface AdditionalGuest {
   isChild: boolean;
 }
 
+export interface EventTable {
+  id: number;
+  table_number: string;
+  created_at: string;
+}
+
 export interface RsvpFormData {
   full_name: string;
   email: string;
@@ -169,6 +175,36 @@ async function getAllRsvps() {
 }
 
 export const api = {
+  async getEventTables(): Promise<EventTable[]> {
+    const { data, error } = await supabase
+      .from('event_tables')
+      .select('*')
+      .order('table_number', { ascending: true });
+
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  },
+
+  async createEventTable(tableNumber: string): Promise<EventTable> {
+    const { data, error } = await supabase
+      .from('event_tables')
+      .insert({ table_number: tableNumber.trim() })
+      .select('*')
+      .single();
+
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  async assignTable(id: number, tableNumber: string | null) {
+    const { error } = await supabase
+      .from('rsvps')
+      .update({ table_number: tableNumber?.trim() || null, updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) throw new Error(error.message);
+  },
+
   async submitRsvp(data: RsvpFormData) {
     const { data: inserted, error } = await supabase
       .from('rsvps')
