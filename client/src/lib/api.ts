@@ -28,6 +28,13 @@ export interface EventTable {
   created_at: string;
 }
 
+export interface SeatingAssignment {
+  id: number;
+  table_number: string;
+  full_name: string;
+  created_at: string;
+}
+
 export interface RsvpFormData {
   full_name: string;
   email: string;
@@ -175,6 +182,33 @@ async function getAllRsvps() {
 }
 
 export const api = {
+  async getSeatingAssignments(): Promise<SeatingAssignment[]> {
+    const { data, error } = await supabase
+      .from('seating_assignments')
+      .select('*')
+      .order('table_number', { ascending: true })
+      .order('full_name', { ascending: true });
+
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  },
+
+  async createSeatingAssignment(tableNumber: string, fullName: string): Promise<SeatingAssignment> {
+    const { data, error } = await supabase
+      .from('seating_assignments')
+      .insert({ table_number: tableNumber.trim(), full_name: fullName.trim() })
+      .select('*')
+      .single();
+
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  async deleteSeatingAssignment(id: number) {
+    const { error } = await supabase.from('seating_assignments').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
   async getEventTables(): Promise<EventTable[]> {
     const { data, error } = await supabase
       .from('event_tables')
@@ -326,10 +360,8 @@ export const api = {
     if (!term) return [];
 
     const { data, error } = await supabase
-      .from('rsvps')
+      .from('seating_assignments')
       .select('full_name, table_number')
-      .eq('attending', true)
-      .not('table_number', 'is', null)
       .ilike('full_name', `%${term}%`)
       .limit(5);
 

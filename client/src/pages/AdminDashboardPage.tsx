@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Bus, Check, ChevronDown, ChevronUp, LogOut, Pencil, Plus, Search, Trash2, Users, X } from 'lucide-react';
+import { Bus, Check, ChevronDown, ChevronUp, LayoutDashboard, LogOut, Pencil, Plus, Search, Trash2, Users, X } from 'lucide-react';
 import { api } from '../lib/api';
-import type { AdditionalGuest, EventTable, RsvpData, RsvpFormData, Stats } from '../lib/api';
+import type { AdditionalGuest, RsvpData, RsvpFormData, SeatingAssignment, Stats } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
 type StatusFilter = 'all' | 'attending' | 'declined';
 type LanguageFilter = 'all' | 'mk' | 'hr';
 type TransportFilter = 'organized' | 'own';
+type AdminTab = 'overview' | 'guests';
 
 type AdminForm = {
   id: number | null;
@@ -18,7 +19,6 @@ type AdminForm = {
   guest_count: number;
   language: 'mk' | 'hr';
   transport: 'organized' | 'own';
-  table_number: string;
   additional_guests: AdditionalGuest[];
   dietary_notes: string;
   message: string;
@@ -32,7 +32,6 @@ const emptyForm = (): AdminForm => ({
   guest_count: 1,
   language: 'mk',
   transport: 'organized',
-  table_number: '',
   additional_guests: [],
   dietary_notes: '',
   message: '',
@@ -55,7 +54,8 @@ export function AdminDashboardPage() {
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [rsvps, setRsvps] = useState<RsvpData[]>([]);
-  const [eventTables, setEventTables] = useState<EventTable[]>([]);
+  const [seatingAssignments, setSeatingAssignments] = useState<SeatingAssignment[]>([]);
+  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [languageFilter, setLanguageFilter] = useState<LanguageFilter>('all');
@@ -77,18 +77,17 @@ export function AdminDashboardPage() {
         api.getRsvps(),
       ]);
 
-      // Keep the existing dashboard usable until the table migration has been
-      // applied; table creation itself will then show the database error.
-      let tableData: EventTable[] = [];
+      // Keep the dashboard usable until the seating-plan migration is applied.
+      let seatingData: SeatingAssignment[] = [];
       try {
-        tableData = await api.getEventTables();
+        seatingData = await api.getSeatingAssignments();
       } catch {
-        tableData = [];
+        seatingData = [];
       }
 
       setStats(statsData);
       setRsvps(rsvpData.rsvps);
-      setEventTables(tableData);
+      setSeatingAssignments(seatingData);
     } catch {
       navigate('/admin/login', { replace: true });
     } finally {
@@ -134,6 +133,7 @@ export function AdminDashboardPage() {
   };
 
   const openCreate = () => {
+    setActiveTab('guests');
     setForm(emptyForm());
     setError('');
     setFormOpen(true);
@@ -148,7 +148,6 @@ export function AdminDashboardPage() {
       guest_count: rsvp.guest_count,
       language: rsvp.language,
       transport: rsvp.transport ?? 'organized',
-      table_number: rsvp.table_number ?? '',
       additional_guests: createAdditionalGuests(rsvp.guest_count, rsvp.additional_guests),
       dietary_notes: rsvp.dietary_notes ?? '',
       message: rsvp.message ?? '',
@@ -169,7 +168,6 @@ export function AdminDashboardPage() {
       guest_count: form.attending ? form.guest_count : 1,
       language: form.language,
       transport: form.attending ? form.transport : null,
-      table_number: form.table_number,
       additional_guests: form.attending ? form.additional_guests : [],
       dietary_notes: form.dietary_notes.trim() || undefined,
       message: form.message.trim() || undefined,
@@ -199,30 +197,13 @@ export function AdminDashboardPage() {
     await load();
   };
 
-  const createTable = async (tableNumber: string) => {
-    await api.createEventTable(tableNumber);
+  const addSeatingAssignment = async (tableNumber: string, fullName: string) => {
+    await api.createSeatingAssignment(tableNumber, fullName);
     await load();
   };
 
-  const assignTable = async (id: number, tableNumber: string | null) => {
-    await api.assignTable(id, tableNumber);
-    await load();
-  };
-
-  const addGuestToTable = async (tableNumber: string, fullName: string) => {
-    const language = i18n.language.startsWith('hr') ? 'hr' : 'mk';
-    const uniquePart = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-    await api.submitRsvp({
-      full_name: fullName.trim(),
-      email: `table-${uniquePart}@sanja-angelcho-rsvp.local`,
-      attending: true,
-      guest_count: 1,
-      language,
-      transport: null,
-      table_number: tableNumber,
-      additional_guests: [],
-    });
+  const deleteSeatingAssignment = async (id: number) => {
+    await api.deleteSeatingAssignment(id);
     await load();
   };
 
@@ -273,28 +254,51 @@ export function AdminDashboardPage() {
           <p className="py-20 text-center text-muted">{t('adminDashboard.loading')}</p>
         ) : (
           <div className="space-y-6">
-            {stats && <DashboardStats stats={stats} />}
+            <nav className="flex w-fit rounded-lg border border-black/10 bg-white p-1" aria-label={t('adminDashboard.tabsLabel')}>
+              <button
+                type="button"
+                onClick={() => setActiveTab('overview')}
+                className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${
+                  activeTab === 'overview' ? 'bg-charcoal text-white' : 'text-muted hover:bg-black/5 hover:text-charcoal'
+                }`}
+              >
+                <LayoutDashboard className="h-4 w-4" />
+                {t('adminDashboard.overviewTab')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('guests')}
+                className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${
+                  activeTab === 'guests' ? 'bg-charcoal text-white' : 'text-muted hover:bg-black/5 hover:text-charcoal'
+                }`}
+              >
+                <Users className="h-4 w-4" />
+                {t('adminDashboard.guestsTab')}
+              </button>
+            </nav>
 
-            <TableAssignmentPanel
-              tables={eventTables}
-              rsvps={rsvps}
-              onCreateTable={createTable}
-              onAssign={assignTable}
-              onAddGuest={addGuestToTable}
-            />
+            {activeTab === 'overview' ? (
+              <>
+                {stats && <DashboardStats stats={stats} />}
+                <ManualSeatingPanel
+                  assignments={seatingAssignments}
+                  onAdd={addSeatingAssignment}
+                  onDelete={deleteSeatingAssignment}
+                />
+              </>
+            ) : (
+              <section className="grid gap-4 lg:grid-cols-[320px_1fr]">
+                <AdminFormPanel
+                  form={form}
+                  formOpen={formOpen}
+                  saving={saving}
+                  error={error}
+                  setForm={setForm}
+                  setFormOpen={setFormOpen}
+                  saveForm={saveForm}
+                />
 
-            <section className="grid gap-4 lg:grid-cols-[320px_1fr]">
-              <AdminFormPanel
-                form={form}
-                formOpen={formOpen}
-                saving={saving}
-                error={error}
-                setForm={setForm}
-                setFormOpen={setFormOpen}
-                saveForm={saveForm}
-              />
-
-              <div className="space-y-4">
+                <div className="space-y-4">
                 <div className="flex flex-col gap-3 rounded-lg border border-black/10 bg-white p-3 md:flex-row md:items-center">
                   <label className="relative flex-1">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
@@ -356,8 +360,9 @@ export function AdminDashboardPage() {
                     </div>
                   )}
                 </section>
-              </div>
-            </section>
+                </div>
+              </section>
+            )}
           </div>
         )}
       </main>
@@ -404,43 +409,29 @@ function DashboardStats({ stats }: { stats: Stats }) {
   );
 }
 
-function TableAssignmentPanel({
-  tables,
-  rsvps,
-  onCreateTable,
-  onAssign,
-  onAddGuest,
+function ManualSeatingPanel({
+  assignments,
+  onAdd,
+  onDelete,
 }: {
-  tables: EventTable[];
-  rsvps: RsvpData[];
-  onCreateTable: (tableNumber: string) => Promise<void>;
-  onAssign: (id: number, tableNumber: string | null) => Promise<void>;
-  onAddGuest: (tableNumber: string, fullName: string) => Promise<void>;
+  assignments: SeatingAssignment[];
+  onAdd: (tableNumber: string, fullName: string) => Promise<void>;
+  onDelete: (id: number) => Promise<void>;
 }) {
   const { t } = useTranslation();
-  const [newTable, setNewTable] = useState('');
+  const [tableNumber, setTableNumber] = useState('');
+  const [fullName, setFullName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [selectedTable, setSelectedTable] = useState<string | null>(null);
-  const [guestFullName, setGuestFullName] = useState('');
 
-  const attending = useMemo(() => rsvps.filter((rsvp) => rsvp.attending === 1), [rsvps]);
-  const tableNumbers = useMemo(() => {
-    const values = new Set(tables.map((table) => table.table_number));
-    attending.forEach((rsvp) => {
-      if (rsvp.table_number) values.add(rsvp.table_number);
-    });
-    return [...values].sort((first, second) => first.localeCompare(second, undefined, { numeric: true }));
-  }, [attending, tables]);
-
-  const createTable = async () => {
-    const number = newTable.trim();
-    if (!number) return;
+  const addAssignment = async () => {
+    if (!tableNumber.trim() || !fullName.trim()) return;
     setSaving(true);
     setError('');
     try {
-      await onCreateTable(number);
-      setNewTable('');
+      await onAdd(tableNumber, fullName);
+      setTableNumber('');
+      setFullName('');
     } catch (err) {
       setError(err instanceof Error ? err.message : t('adminDashboard.tableSaveError'));
     } finally {
@@ -448,28 +439,11 @@ function TableAssignmentPanel({
     }
   };
 
-  const assign = async (id: number, tableNumber: string) => {
+  const removeAssignment = async (id: number) => {
     setSaving(true);
     setError('');
     try {
-      await onAssign(id, tableNumber || null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('adminDashboard.tableSaveError'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const addGuest = async (tableNumber: string) => {
-    const fullName = guestFullName.trim();
-    if (!fullName) return;
-
-    setSaving(true);
-    setError('');
-    try {
-      await onAddGuest(tableNumber, fullName);
-      setGuestFullName('');
-      setSelectedTable(null);
+      await onDelete(id);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('adminDashboard.tableSaveError'));
     } finally {
@@ -481,126 +455,67 @@ function TableAssignmentPanel({
     <section className="rounded-lg border border-black/10 bg-white">
       <div className="flex flex-col gap-3 border-b border-black/10 px-4 py-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-sm font-semibold">{t('adminDashboard.tableAssignments')}</h2>
+          <h2 className="text-sm font-semibold">{t('adminDashboard.manualSeating')}</h2>
           <p className="mt-1 text-sm text-muted">{t('adminDashboard.tableAssignmentsDescription')}</p>
         </div>
-        <div className="flex gap-2">
+        <form
+          onSubmit={(event) => { event.preventDefault(); void addAssignment(); }}
+          className="flex flex-col gap-2 sm:flex-row"
+        >
           <input
-            value={newTable}
-            onChange={(event) => setNewTable(event.target.value)}
-            onKeyDown={(event) => { if (event.key === 'Enter') void createTable(); }}
+            value={tableNumber}
+            onChange={(event) => setTableNumber(event.target.value)}
             placeholder={t('adminDashboard.newTablePlaceholder')}
-            className="h-10 w-36 rounded-md border border-black/10 px-3 text-sm outline-none focus:border-gold"
+            className="h-10 w-full rounded-md border border-black/10 px-3 text-sm outline-none focus:border-gold sm:w-24"
+          />
+          <input
+            value={fullName}
+            onChange={(event) => setFullName(event.target.value)}
+            placeholder={t('adminDashboard.guestNamePlaceholder')}
+            className="h-10 w-full rounded-md border border-black/10 px-3 text-sm outline-none focus:border-gold sm:w-52"
           />
           <button
             type="button"
-            onClick={() => void createTable()}
-            disabled={saving || !newTable.trim()}
+            onClick={() => void addAssignment()}
+            disabled={saving || !tableNumber.trim() || !fullName.trim()}
             className="inline-flex items-center gap-2 rounded-md bg-charcoal px-3 py-2 text-sm text-white hover:bg-black disabled:opacity-60"
           >
             <Plus className="h-4 w-4" />
-            {t('adminDashboard.addTable')}
+            {t('adminDashboard.addGuest')}
           </button>
-        </div>
+        </form>
       </div>
 
       {error && <p className="mx-4 mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-      <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div>
-          {tableNumbers.length === 0 ? (
-            <p className="rounded-md bg-[#f6f4ef] p-4 text-sm text-muted">{t('adminDashboard.noTables')}</p>
-          ) : (
-            <div className="grid gap-3 md:grid-cols-2">
-              {tableNumbers.map((tableNumber) => {
-                const guests = attending.filter((rsvp) => rsvp.table_number === tableNumber);
-                const guestTotal = guests.reduce((sum, rsvp) => sum + rsvp.guest_count, 0);
-                return (
-                  <article key={tableNumber} className="overflow-hidden rounded-md border border-black/10">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedTable((current) => current === tableNumber ? null : tableNumber);
-                        setGuestFullName('');
-                      }}
-                      className="flex w-full items-center justify-between border-b border-black/10 bg-[#fbfaf7] px-3 py-2 text-left hover:bg-gold/10"
-                    >
-                      <h3 className="font-semibold">{t('adminDashboard.tableLabel', { number: tableNumber })}</h3>
-                      <span className="text-xs text-muted">{t('adminDashboard.tableGuestTotal', { count: guestTotal })}</span>
-                    </button>
-                    {selectedTable === tableNumber && (
-                      <form
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          void addGuest(tableNumber);
-                        }}
-                        className="flex gap-2 border-b border-black/10 bg-gold/5 p-3"
-                      >
-                        <input
-                          autoFocus
-                          value={guestFullName}
-                          onChange={(event) => setGuestFullName(event.target.value)}
-                          placeholder={t('adminDashboard.guestNamePlaceholder')}
-                          className="h-9 min-w-0 flex-1 rounded-md border border-black/10 bg-white px-2 text-sm outline-none focus:border-gold"
-                        />
-                        <button
-                          type="submit"
-                          disabled={saving || !guestFullName.trim()}
-                          className="rounded-md bg-charcoal px-3 text-sm text-white hover:bg-black disabled:opacity-60"
-                        >
-                          {t('adminDashboard.addGuest')}
-                        </button>
-                      </form>
-                    )}
-                    {guests.length === 0 ? (
-                      <p className="p-3 text-sm text-muted">{t('adminDashboard.emptyTable')}</p>
-                    ) : (
-                      <ul className="divide-y divide-black/10">
-                        {guests.map((rsvp) => (
-                          <li key={rsvp.id} className="p-3 text-sm">
-                            <p className="font-medium">{rsvp.full_name}</p>
-                            {rsvp.additional_guests.map((guest, index) => (
-                              <p key={`${rsvp.id}-${index}`} className="mt-1 pl-3 text-muted">
-                                {guest.fullName || t('adminDashboard.guestNumber', { number: index + 2 })}
-                                {guest.isChild ? ` · ${t('adminDashboard.child').toLowerCase()}` : ''}
-                              </p>
-                            ))}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          )}
+      {assignments.length === 0 ? (
+        <p className="m-4 rounded-md bg-[#f6f4ef] p-4 text-sm text-muted">{t('adminDashboard.noManualSeating')}</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="border-y border-black/10 bg-[#fbfaf7] text-xs uppercase text-muted">
+              <tr>
+                <th className="px-4 py-3 font-medium">{t('adminDashboard.tableNumber')}</th>
+                <th className="px-4 py-3 font-medium">{t('adminDashboard.fullName')}</th>
+                <th className="px-4 py-3"><span className="sr-only">{t('admin.delete')}</span></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/10">
+              {assignments.map((assignment) => (
+                <tr key={assignment.id}>
+                  <td className="px-4 py-3 font-medium">{assignment.table_number}</td>
+                  <td className="px-4 py-3">{assignment.full_name}</td>
+                  <td className="px-4 py-3 text-right">
+                    <IconButton label={t('admin.delete')} onClick={() => void removeAssignment(assignment.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </IconButton>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-
-        <aside className="rounded-md bg-[#f6f4ef] p-3">
-          <h3 className="text-sm font-semibold">{t('adminDashboard.assignGuests')}</h3>
-          <p className="mt-1 text-xs text-muted">{t('adminDashboard.assignGuestsDescription')}</p>
-          <div className="mt-3 space-y-2">
-            {attending.length === 0 ? (
-              <p className="text-sm text-muted">{t('adminDashboard.noConfirmedGuests')}</p>
-            ) : attending.map((rsvp) => (
-              <label key={rsvp.id} className="block rounded-md bg-white p-2">
-                <span className="mb-1 block text-sm font-medium">{rsvp.full_name}</span>
-                <select
-                  value={rsvp.table_number ?? ''}
-                  onChange={(event) => void assign(rsvp.id, event.target.value)}
-                  disabled={saving}
-                  className="h-9 w-full rounded-md border border-black/10 bg-white px-2 text-sm outline-none focus:border-gold disabled:opacity-60"
-                >
-                  <option value="">{t('adminDashboard.unassigned')}</option>
-                  {tableNumbers.map((tableNumber) => (
-                    <option key={tableNumber} value={tableNumber}>{t('adminDashboard.tableLabel', { number: tableNumber })}</option>
-                  ))}
-                </select>
-              </label>
-            ))}
-          </div>
-        </aside>
-      </div>
+      )}
     </section>
   );
 }
@@ -837,14 +752,6 @@ function AdminFormPanel({
               </div>
             </Field>
 
-            <Field label={t('adminDashboard.tableNumber')}>
-              <input
-                value={form.table_number}
-                onChange={(event) => setForm((current) => ({ ...current, table_number: event.target.value }))}
-                placeholder={t('adminDashboard.tableNumberPlaceholder')}
-                className="admin-input"
-              />
-            </Field>
           </>
         )}
 
@@ -981,7 +888,6 @@ function RsvpRow({
             <Detail label={t('adminDashboard.confirmation')} value={rsvp.attending === 1 ? t('adminDashboard.yes') : t('adminDashboard.no')} />
             <Detail label={t('adminDashboard.group')} value={rsvp.language === 'mk' ? t('adminDashboard.macedonian') : t('adminDashboard.croatian')} />
             <Detail label={t('adminDashboard.transport')} value={transportLabel(rsvp.transport, t)} />
-            <Detail label={t('adminDashboard.tableNumber')} value={rsvp.table_number || '-'} />
             <Detail label={t('adminDashboard.guestCount')} value={String(rsvp.guest_count)} />
             <Detail label={t('adminDashboard.phone')} value={rsvp.phone || '-'} />
             <Detail label={t('admin.date')} value={new Date(rsvp.created_at).toLocaleDateString()} />
