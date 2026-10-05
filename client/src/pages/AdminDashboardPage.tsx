@@ -209,6 +209,23 @@ export function AdminDashboardPage() {
     await load();
   };
 
+  const addGuestToTable = async (tableNumber: string, fullName: string) => {
+    const language = i18n.language.startsWith('hr') ? 'hr' : 'mk';
+    const uniquePart = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    await api.submitRsvp({
+      full_name: fullName.trim(),
+      email: `table-${uniquePart}@sanja-angelcho-rsvp.local`,
+      attending: true,
+      guest_count: 1,
+      language,
+      transport: null,
+      table_number: tableNumber,
+      additional_guests: [],
+    });
+    await load();
+  };
+
   return (
     <div className="min-h-screen bg-[#f6f4ef] text-charcoal">
       <header className="sticky top-0 z-40 border-b border-black/10 bg-white/95">
@@ -263,6 +280,7 @@ export function AdminDashboardPage() {
               rsvps={rsvps}
               onCreateTable={createTable}
               onAssign={assignTable}
+              onAddGuest={addGuestToTable}
             />
 
             <section className="grid gap-4 lg:grid-cols-[320px_1fr]">
@@ -391,16 +409,20 @@ function TableAssignmentPanel({
   rsvps,
   onCreateTable,
   onAssign,
+  onAddGuest,
 }: {
   tables: EventTable[];
   rsvps: RsvpData[];
   onCreateTable: (tableNumber: string) => Promise<void>;
   onAssign: (id: number, tableNumber: string | null) => Promise<void>;
+  onAddGuest: (tableNumber: string, fullName: string) => Promise<void>;
 }) {
   const { t } = useTranslation();
   const [newTable, setNewTable] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const [guestFullName, setGuestFullName] = useState('');
 
   const attending = useMemo(() => rsvps.filter((rsvp) => rsvp.attending === 1), [rsvps]);
   const tableNumbers = useMemo(() => {
@@ -431,6 +453,23 @@ function TableAssignmentPanel({
     setError('');
     try {
       await onAssign(id, tableNumber || null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('adminDashboard.tableSaveError'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const addGuest = async (tableNumber: string) => {
+    const fullName = guestFullName.trim();
+    if (!fullName) return;
+
+    setSaving(true);
+    setError('');
+    try {
+      await onAddGuest(tableNumber, fullName);
+      setGuestFullName('');
+      setSelectedTable(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('adminDashboard.tableSaveError'));
     } finally {
@@ -477,11 +516,42 @@ function TableAssignmentPanel({
                 const guests = attending.filter((rsvp) => rsvp.table_number === tableNumber);
                 const guestTotal = guests.reduce((sum, rsvp) => sum + rsvp.guest_count, 0);
                 return (
-                  <article key={tableNumber} className="rounded-md border border-black/10">
-                    <div className="flex items-center justify-between border-b border-black/10 bg-[#fbfaf7] px-3 py-2">
+                  <article key={tableNumber} className="overflow-hidden rounded-md border border-black/10">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedTable((current) => current === tableNumber ? null : tableNumber);
+                        setGuestFullName('');
+                      }}
+                      className="flex w-full items-center justify-between border-b border-black/10 bg-[#fbfaf7] px-3 py-2 text-left hover:bg-gold/10"
+                    >
                       <h3 className="font-semibold">{t('adminDashboard.tableLabel', { number: tableNumber })}</h3>
                       <span className="text-xs text-muted">{t('adminDashboard.tableGuestTotal', { count: guestTotal })}</span>
-                    </div>
+                    </button>
+                    {selectedTable === tableNumber && (
+                      <form
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void addGuest(tableNumber);
+                        }}
+                        className="flex gap-2 border-b border-black/10 bg-gold/5 p-3"
+                      >
+                        <input
+                          autoFocus
+                          value={guestFullName}
+                          onChange={(event) => setGuestFullName(event.target.value)}
+                          placeholder={t('adminDashboard.guestNamePlaceholder')}
+                          className="h-9 min-w-0 flex-1 rounded-md border border-black/10 bg-white px-2 text-sm outline-none focus:border-gold"
+                        />
+                        <button
+                          type="submit"
+                          disabled={saving || !guestFullName.trim()}
+                          className="rounded-md bg-charcoal px-3 text-sm text-white hover:bg-black disabled:opacity-60"
+                        >
+                          {t('adminDashboard.addGuest')}
+                        </button>
+                      </form>
+                    )}
                     {guests.length === 0 ? (
                       <p className="p-3 text-sm text-muted">{t('adminDashboard.emptyTable')}</p>
                     ) : (
