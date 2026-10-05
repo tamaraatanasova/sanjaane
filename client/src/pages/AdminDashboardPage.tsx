@@ -280,7 +280,6 @@ export function AdminDashboardPage() {
             {activeTab === 'tables' ? (
               <TablesPanel
                 assignments={seatingAssignments}
-                rsvps={rsvps}
                 onAdd={addSeatingAssignment}
                 onAddMany={addSeatingAssignments}
                 onDelete={deleteSeatingAssignment}
@@ -380,33 +379,18 @@ export function AdminDashboardPage() {
   );
 }
 
-function seatingNames(rsvp: RsvpData, unnamedGuestLabel: (number: number) => string) {
-  const additional = Array.from({ length: Math.max(0, rsvp.guest_count - 1) }, (_, index) => {
-    const name = rsvp.additional_guests[index]?.fullName.trim();
-    return name || `${rsvp.full_name} — ${unnamedGuestLabel(index + 2)}`;
-  });
-  return [rsvp.full_name, ...additional];
-}
-
 function TablesPanel({
   assignments,
-  rsvps,
   onAdd,
   onAddMany,
   onDelete,
 }: {
   assignments: SeatingAssignment[];
-  rsvps: RsvpData[];
   onAdd: (tableNumber: string, fullName: string) => Promise<void>;
   onAddMany: (tableNumber: string, fullNames: string[]) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
 }) {
   const { t } = useTranslation();
-  const [tableNumber, setTableNumber] = useState('');
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const confirmedRsvps = useMemo(() => rsvps.filter((rsvp) => rsvp.attending === 1), [rsvps]);
   const tables = useMemo(() => {
     const grouped = new Map<string, SeatingAssignment[]>();
     assignments.forEach((assignment) => {
@@ -416,47 +400,6 @@ function TablesPanel({
     });
     return [...grouped.entries()].sort(([first], [second]) => first.localeCompare(second, undefined, { numeric: true }));
   }, [assignments]);
-  const selectedGuestTotal = confirmedRsvps
-    .filter((rsvp) => selectedIds.includes(rsvp.id))
-    .reduce((sum, rsvp) => sum + rsvp.guest_count, 0);
-
-  const toggleRsvp = (id: number) => {
-    setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-  };
-
-  const toggleAll = () => {
-    setSelectedIds(selectedIds.length === confirmedRsvps.length ? [] : confirmedRsvps.map((rsvp) => rsvp.id));
-  };
-
-  const addSelected = async () => {
-    if (!tableNumber.trim() || !selectedIds.length) return;
-    setSaving(true);
-    setError('');
-    try {
-      const names = confirmedRsvps
-        .filter((rsvp) => selectedIds.includes(rsvp.id))
-        .flatMap((rsvp) => seatingNames(rsvp, (number) => t('adminDashboard.guestNumber', { number })));
-      await onAddMany(tableNumber, names);
-      setSelectedIds([]);
-      setTableNumber('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('adminDashboard.tableSaveError'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const removeGuest = async (id: number) => {
-    setSaving(true);
-    setError('');
-    try {
-      await onDelete(id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('adminDashboard.tableSaveError'));
-    } finally {
-      setSaving(false);
-    }
-  };
 
   return (
     <section className="space-y-4">
@@ -480,7 +423,7 @@ function TablesPanel({
                   {guests.map((guest) => (
                     <li key={guest.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
                       <span>{guest.full_name}</span>
-                      <IconButton label={t('admin.delete')} onClick={() => void removeGuest(guest.id)}>
+                      <IconButton label={t('admin.delete')} onClick={() => void onDelete(guest.id)}>
                         <Trash2 className="h-4 w-4" />
                       </IconButton>
                     </li>
