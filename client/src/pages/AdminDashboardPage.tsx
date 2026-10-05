@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Bus, Check, ChevronDown, ChevronUp, LayoutDashboard, LogOut, Pencil, Plus, Search, TableProperties, Trash2, Users, X } from 'lucide-react';
+import { Bus, Check, ChevronDown, ChevronUp, LogOut, Pencil, Plus, Search, TableProperties, Trash2, Users, X } from 'lucide-react';
 import { api } from '../lib/api';
-import type { AdditionalGuest, RsvpData, RsvpFormData, SeatingAssignment, Stats } from '../lib/api';
+import type { AdditionalGuest, RsvpData, RsvpFormData, SeatingAssignment } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
 type StatusFilter = 'all' | 'attending' | 'declined';
 type LanguageFilter = 'all' | 'mk' | 'hr';
 type TransportFilter = 'organized' | 'own';
-type AdminTab = 'overview' | 'guests' | 'tables';
+type AdminTab = 'guests' | 'tables';
 
 type AdminForm = {
   id: number | null;
@@ -52,10 +52,9 @@ export function AdminDashboardPage() {
   const { t, i18n } = useTranslation();
   const { logout: signOut } = useAuth();
 
-  const [stats, setStats] = useState<Stats | null>(null);
   const [rsvps, setRsvps] = useState<RsvpData[]>([]);
   const [seatingAssignments, setSeatingAssignments] = useState<SeatingAssignment[]>([]);
-  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const [activeTab, setActiveTab] = useState<AdminTab>('tables');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [languageFilter, setLanguageFilter] = useState<LanguageFilter>('all');
@@ -72,10 +71,7 @@ export function AdminDashboardPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [statsData, rsvpData] = await Promise.all([
-        api.getStats(),
-        api.getRsvps(),
-      ]);
+      const rsvpData = await api.getRsvps();
 
       // Keep the dashboard usable until the seating-plan migration is applied.
       let seatingData: SeatingAssignment[] = [];
@@ -85,7 +81,6 @@ export function AdminDashboardPage() {
         seatingData = [];
       }
 
-      setStats(statsData);
       setRsvps(rsvpData.rsvps);
       setSeatingAssignments(seatingData);
     } catch {
@@ -262,16 +257,6 @@ export function AdminDashboardPage() {
             <nav className="flex w-fit rounded-lg border border-black/10 bg-white p-1" aria-label={t('adminDashboard.tabsLabel')}>
               <button
                 type="button"
-                onClick={() => setActiveTab('overview')}
-                className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${
-                  activeTab === 'overview' ? 'bg-charcoal text-white' : 'text-muted hover:bg-black/5 hover:text-charcoal'
-                }`}
-              >
-                <LayoutDashboard className="h-4 w-4" />
-                {t('adminDashboard.overviewTab')}
-              </button>
-              <button
-                type="button"
                 onClick={() => setActiveTab('guests')}
                 className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${
                   activeTab === 'guests' ? 'bg-charcoal text-white' : 'text-muted hover:bg-black/5 hover:text-charcoal'
@@ -292,16 +277,7 @@ export function AdminDashboardPage() {
               </button>
             </nav>
 
-            {activeTab === 'overview' ? (
-              <>
-                {stats && <DashboardStats stats={stats} />}
-                <ManualSeatingPanel
-                  assignments={seatingAssignments}
-                  onAdd={addSeatingAssignment}
-                  onDelete={deleteSeatingAssignment}
-                />
-              </>
-            ) : activeTab === 'tables' ? (
+            {activeTab === 'tables' ? (
               <TablesPanel
                 assignments={seatingAssignments}
                 rsvps={rsvps}
@@ -404,34 +380,6 @@ export function AdminDashboardPage() {
   );
 }
 
-function DashboardStats({ stats }: { stats: Stats }) {
-  const { t } = useTranslation();
-  const summary = [
-    { label: t('adminDashboard.totalResponses'), value: stats.total },
-    { label: t('adminDashboard.confirmedYes'), value: stats.attending },
-    { label: t('adminDashboard.confirmedNo'), value: stats.notAttending },
-    { label: t('adminDashboard.totalGuests'), value: stats.guestTotal },
-  ];
-
-  return (
-    <section className="grid gap-4 xl:grid-cols-[1fr_1.5fr]">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-2">
-        {summary.map((item) => (
-          <div key={item.label} className="rounded-lg border border-black/10 bg-white p-4">
-            <p className="text-xs uppercase text-muted">{item.label}</p>
-            <p className="mt-2 text-3xl font-semibold">{item.value}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <GroupPanel title={t('adminDashboard.macedonianGuests')} stats={stats.mk} />
-        <GroupPanel title={t('adminDashboard.croatianGuests')} stats={stats.hr} />
-      </div>
-    </section>
-  );
-}
-
 function seatingNames(rsvp: RsvpData, unnamedGuestLabel: (number: number) => string) {
   const additional = Array.from({ length: Math.max(0, rsvp.guest_count - 1) }, (_, index) => {
     const name = rsvp.additional_guests[index]?.fullName.trim();
@@ -498,6 +446,18 @@ function TablesPanel({
     }
   };
 
+  const removeGuest = async (id: number) => {
+    setSaving(true);
+    setError('');
+    try {
+      await onDelete(id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('adminDashboard.tableSaveError'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <section className="space-y-4">
       <div className="rounded-lg border border-black/10 bg-white p-4">
@@ -551,7 +511,7 @@ function TablesPanel({
         )}
       </div>
 
-      <ManualSeatingPanel assignments={assignments} onAdd={onAdd} onDelete={onDelete} compact />
+      <ManualSeatingPanel assignments={assignments} onAdd={onAdd} onAddMany={onAddMany} onDelete={onDelete} compact />
 
       <section className="rounded-lg border border-black/10 bg-white">
         <div className="border-b border-black/10 px-4 py-3">
@@ -568,7 +528,14 @@ function TablesPanel({
                   <span className="text-xs text-muted">{t('adminDashboard.tableGuestTotal', { count: guests.length })}</span>
                 </div>
                 <ul className="divide-y divide-black/10">
-                  {guests.map((guest) => <li key={guest.id} className="px-3 py-2 text-sm">{guest.full_name}</li>)}
+                  {guests.map((guest) => (
+                    <li key={guest.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                      <span>{guest.full_name}</span>
+                      <IconButton label={t('admin.delete')} onClick={() => void removeGuest(guest.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </IconButton>
+                    </li>
+                  ))}
                 </ul>
               </article>
             ))}
@@ -582,28 +549,34 @@ function TablesPanel({
 function ManualSeatingPanel({
   assignments,
   onAdd,
+  onAddMany,
   onDelete,
   compact = false,
 }: {
   assignments: SeatingAssignment[];
   onAdd: (tableNumber: string, fullName: string) => Promise<void>;
+  onAddMany: (tableNumber: string, fullNames: string[]) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
   compact?: boolean;
 }) {
   const { t } = useTranslation();
   const [tableNumber, setTableNumber] = useState('');
-  const [fullName, setFullName] = useState('');
+  const [guestNames, setGuestNames] = useState(['']);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const addAssignment = async () => {
-    if (!tableNumber.trim() || !fullName.trim()) return;
+  const addAssignments = async () => {
+    if (!tableNumber.trim() || guestNames.some((name) => !name.trim())) return;
     setSaving(true);
     setError('');
     try {
-      await onAdd(tableNumber, fullName);
+      if (guestNames.length === 1) {
+        await onAdd(tableNumber, guestNames[0]);
+      } else {
+        await onAddMany(tableNumber, guestNames);
+      }
       setTableNumber('');
-      setFullName('');
+      setGuestNames(['']);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('adminDashboard.tableSaveError'));
     } finally {
@@ -625,35 +598,52 @@ function ManualSeatingPanel({
 
   return (
     <section className="rounded-lg border border-black/10 bg-white">
-      <div className="flex flex-col gap-3 border-b border-black/10 px-4 py-4 md:flex-row md:items-center md:justify-between">
+      <div className="border-b border-black/10 px-4 py-4">
         <div>
           <h2 className="text-sm font-semibold">{t('adminDashboard.manualSeating')}</h2>
           <p className="mt-1 text-sm text-muted">{t('adminDashboard.tableAssignmentsDescription')}</p>
         </div>
-        <form
-          onSubmit={(event) => { event.preventDefault(); void addAssignment(); }}
-          className="flex flex-col gap-2 sm:flex-row"
-        >
-          <input
-            value={tableNumber}
-            onChange={(event) => setTableNumber(event.target.value)}
-            placeholder={t('adminDashboard.newTablePlaceholder')}
-            className="h-10 w-full rounded-md border border-black/10 px-3 text-sm outline-none focus:border-gold sm:w-24"
-          />
-          <input
-            value={fullName}
-            onChange={(event) => setFullName(event.target.value)}
-            placeholder={t('adminDashboard.guestNamePlaceholder')}
-            className="h-10 w-full rounded-md border border-black/10 px-3 text-sm outline-none focus:border-gold sm:w-52"
-          />
+        <form onSubmit={(event) => { event.preventDefault(); void addAssignments(); }} className="mt-4 space-y-3">
+          <div className="grid gap-2 sm:grid-cols-[9rem_12rem_auto] sm:items-end">
+            <Field label={t('adminDashboard.tableNumber')}>
+              <input
+                value={tableNumber}
+                onChange={(event) => setTableNumber(event.target.value)}
+                placeholder={t('adminDashboard.newTablePlaceholder')}
+                className="h-10 w-full rounded-md border border-black/10 px-3 text-sm outline-none focus:border-gold"
+              />
+            </Field>
+            <Field label={t('adminDashboard.guestCount')}>
+              <select
+                value={guestNames.length}
+                onChange={(event) => {
+                  const count = Number(event.target.value);
+                  setGuestNames((current) => Array.from({ length: count }, (_, index) => current[index] ?? ''));
+                }}
+                className="h-10 w-full rounded-md border border-black/10 bg-white px-3 text-sm outline-none focus:border-gold"
+              >
+                {Array.from({ length: 20 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count}</option>)}
+              </select>
+            </Field>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {guestNames.map((fullName, index) => (
+              <input
+                key={index}
+                value={fullName}
+                onChange={(event) => setGuestNames((current) => current.map((name, nameIndex) => nameIndex === index ? event.target.value : name))}
+                placeholder={t('adminDashboard.guestNumber', { number: index + 1 })}
+                className="h-10 w-full rounded-md border border-black/10 px-3 text-sm outline-none focus:border-gold"
+              />
+            ))}
+          </div>
           <button
-            type="button"
-            onClick={() => void addAssignment()}
-            disabled={saving || !tableNumber.trim() || !fullName.trim()}
+            type="submit"
+            disabled={saving || !tableNumber.trim() || guestNames.some((name) => !name.trim())}
             className="inline-flex items-center gap-2 rounded-md bg-charcoal px-3 py-2 text-sm text-white hover:bg-black disabled:opacity-60"
           >
             <Plus className="h-4 w-4" />
-            {t('adminDashboard.addGuest')}
+            {t('adminDashboard.addGuests', { count: guestNames.length })}
           </button>
         </form>
       </div>
@@ -689,39 +679,6 @@ function ManualSeatingPanel({
         </div>
       )}
     </section>
-  );
-}
-
-function GroupPanel({ title, stats }: { title: string; stats: Stats['mk'] }) {
-  const { t } = useTranslation();
-  return (
-    <div className="rounded-lg border border-black/10 bg-white p-4">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-semibold">{title}</h3>
-        <Users className="h-4 w-4 text-muted" />
-      </div>
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <Metric label={t('adminDashboard.responses')} value={stats.total} />
-        <Metric label={t('adminDashboard.guests')} value={stats.guestTotal} />
-        <Metric label={t('adminDashboard.adults')} value={stats.adultTotal} />
-        <Metric label={t('adminDashboard.children')} value={stats.childTotal} />
-        <Metric label={t('adminDashboard.yes')} value={stats.attending} tone="good" />
-        <Metric label={t('adminDashboard.no')} value={stats.declined} tone="bad" />
-        <Metric label={t('adminDashboard.organizedTransport')} value={stats.organizedTransport} />
-        <Metric label={t('adminDashboard.ownTransport')} value={stats.ownTransport} />
-      </div>
-    </div>
-  );
-}
-
-function Metric({ label, value, tone }: { label: string; value: number; tone?: 'good' | 'bad' }) {
-  return (
-    <div className="rounded-md bg-[#f6f4ef] px-3 py-2">
-      <p className="text-xs text-muted">{label}</p>
-      <p className={`text-xl font-semibold ${tone === 'good' ? 'text-sage-dark' : tone === 'bad' ? 'text-red-700' : ''}`}>
-        {value}
-      </p>
-    </div>
   );
 }
 
