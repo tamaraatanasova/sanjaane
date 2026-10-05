@@ -204,6 +204,19 @@ export const api = {
     return data;
   },
 
+  async createSeatingAssignments(tableNumber: string, fullNames: string[]): Promise<SeatingAssignment[]> {
+    const names = fullNames.map((name) => name.trim()).filter(Boolean);
+    if (!names.length) return [];
+
+    const { data, error } = await supabase
+      .from('seating_assignments')
+      .insert(names.map((full_name) => ({ table_number: tableNumber.trim(), full_name })))
+      .select('*');
+
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  },
+
   async deleteSeatingAssignment(id: number) {
     const { error } = await supabase.from('seating_assignments').delete().eq('id', id);
     if (error) throw new Error(error.message);
@@ -359,17 +372,38 @@ export const api = {
     const term = name.trim();
     if (!term) return [];
 
-    const { data, error } = await supabase
+    const normalizedTerm = term.toLowerCase();
+    const { data: assignmentData, error: assignmentError } = await supabase
       .from('seating_assignments')
       .select('full_name, table_number')
       .ilike('full_name', `%${term}%`)
       .limit(5);
 
-    if (error) throw new Error(error.message);
-    return (data ?? []).map((guest) => ({
-      fullName: guest.full_name,
-      tableNumber: guest.table_number as string,
-    }));
+    // `seating_assignments` is used by the Mаси tab. Also look at RSVP table
+    // assignments so guests added through the older RSVP workflow are found.
+    const matches = new Map<string, { fullName: string; tableNumber: string }>();
+    if (!assignmentError) {
+      (assignmentData ?? []).forEach((guest) => {
+        matches.set(`${guest.full_name}-${guest.table_number}`, {
+          fullName: guest.full_name,
+          tableNumber: guest.table_number as string,
+        });
+      });
+    }
+
+    const rsvps = await getAllRsvps();
+    rsvps
+      .filter((rsvp) => rsvp.attending === 1 && rsvp.table_number)
+      .forEach((rsvp) => {
+        const names = [rsvp.full_name, ...rsvp.additional_guests.map((guest) => guest.fullName).filter(Boolean)];
+        names
+          .filter((fullName) => fullName.toLowerCase().includes(normalizedTerm))
+          .forEach((fullName) => {
+            matches.set(`${fullName}-${rsvp.table_number}`, { fullName, tableNumber: rsvp.table_number! });
+          });
+      });
+
+    return [...matches.values()].slice(0, 5);
   },
 
   async updateRsvp(id: number, data: RsvpFormData) {

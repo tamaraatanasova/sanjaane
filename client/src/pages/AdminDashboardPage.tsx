@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Bus, Check, ChevronDown, ChevronUp, LayoutDashboard, LogOut, Pencil, Plus, Search, Trash2, Users, X } from 'lucide-react';
+import { Bus, Check, ChevronDown, ChevronUp, LayoutDashboard, LogOut, Pencil, Plus, Search, TableProperties, Trash2, Users, X } from 'lucide-react';
 import { api } from '../lib/api';
 import type { AdditionalGuest, RsvpData, RsvpFormData, SeatingAssignment, Stats } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 type StatusFilter = 'all' | 'attending' | 'declined';
 type LanguageFilter = 'all' | 'mk' | 'hr';
 type TransportFilter = 'organized' | 'own';
-type AdminTab = 'overview' | 'guests';
+type AdminTab = 'overview' | 'guests' | 'tables';
 
 type AdminForm = {
   id: number | null;
@@ -207,6 +207,11 @@ export function AdminDashboardPage() {
     await load();
   };
 
+  const addSeatingAssignments = async (tableNumber: string, fullNames: string[]) => {
+    await api.createSeatingAssignments(tableNumber, fullNames);
+    await load();
+  };
+
   return (
     <div className="min-h-screen bg-[#f6f4ef] text-charcoal">
       <header className="sticky top-0 z-40 border-b border-black/10 bg-white/95">
@@ -275,6 +280,16 @@ export function AdminDashboardPage() {
                 <Users className="h-4 w-4" />
                 {t('adminDashboard.guestsTab')}
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('tables')}
+                className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${
+                  activeTab === 'tables' ? 'bg-charcoal text-white' : 'text-muted hover:bg-black/5 hover:text-charcoal'
+                }`}
+              >
+                <TableProperties className="h-4 w-4" />
+                {t('adminDashboard.tablesTab')}
+              </button>
             </nav>
 
             {activeTab === 'overview' ? (
@@ -286,6 +301,14 @@ export function AdminDashboardPage() {
                   onDelete={deleteSeatingAssignment}
                 />
               </>
+            ) : activeTab === 'tables' ? (
+              <TablesPanel
+                assignments={seatingAssignments}
+                rsvps={rsvps}
+                onAdd={addSeatingAssignment}
+                onAddMany={addSeatingAssignments}
+                onDelete={deleteSeatingAssignment}
+              />
             ) : (
               <section className="grid gap-4 lg:grid-cols-[320px_1fr]">
                 <AdminFormPanel
@@ -409,14 +432,163 @@ function DashboardStats({ stats }: { stats: Stats }) {
   );
 }
 
+function seatingNames(rsvp: RsvpData, unnamedGuestLabel: (number: number) => string) {
+  const additional = Array.from({ length: Math.max(0, rsvp.guest_count - 1) }, (_, index) => {
+    const name = rsvp.additional_guests[index]?.fullName.trim();
+    return name || `${rsvp.full_name} — ${unnamedGuestLabel(index + 2)}`;
+  });
+  return [rsvp.full_name, ...additional];
+}
+
+function TablesPanel({
+  assignments,
+  rsvps,
+  onAdd,
+  onAddMany,
+  onDelete,
+}: {
+  assignments: SeatingAssignment[];
+  rsvps: RsvpData[];
+  onAdd: (tableNumber: string, fullName: string) => Promise<void>;
+  onAddMany: (tableNumber: string, fullNames: string[]) => Promise<void>;
+  onDelete: (id: number) => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const [tableNumber, setTableNumber] = useState('');
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const confirmedRsvps = useMemo(() => rsvps.filter((rsvp) => rsvp.attending === 1), [rsvps]);
+  const tables = useMemo(() => {
+    const grouped = new Map<string, SeatingAssignment[]>();
+    assignments.forEach((assignment) => {
+      const current = grouped.get(assignment.table_number) ?? [];
+      current.push(assignment);
+      grouped.set(assignment.table_number, current);
+    });
+    return [...grouped.entries()].sort(([first], [second]) => first.localeCompare(second, undefined, { numeric: true }));
+  }, [assignments]);
+  const selectedGuestTotal = confirmedRsvps
+    .filter((rsvp) => selectedIds.includes(rsvp.id))
+    .reduce((sum, rsvp) => sum + rsvp.guest_count, 0);
+
+  const toggleRsvp = (id: number) => {
+    setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  };
+
+  const toggleAll = () => {
+    setSelectedIds(selectedIds.length === confirmedRsvps.length ? [] : confirmedRsvps.map((rsvp) => rsvp.id));
+  };
+
+  const addSelected = async () => {
+    if (!tableNumber.trim() || !selectedIds.length) return;
+    setSaving(true);
+    setError('');
+    try {
+      const names = confirmedRsvps
+        .filter((rsvp) => selectedIds.includes(rsvp.id))
+        .flatMap((rsvp) => seatingNames(rsvp, (number) => t('adminDashboard.guestNumber', { number })));
+      await onAddMany(tableNumber, names);
+      setSelectedIds([]);
+      setTableNumber('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('adminDashboard.tableSaveError'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="space-y-4">
+      <div className="rounded-lg border border-black/10 bg-white p-4">
+        <div className="flex flex-col gap-3 border-b border-black/10 pb-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold">{t('adminDashboard.tablesTab')}</h2>
+            <p className="mt-1 text-sm text-muted">{t('adminDashboard.bulkSeatingDescription')}</p>
+          </div>
+          <label className="block sm:w-40">
+            <span className="mb-1 block text-xs font-medium text-muted">{t('adminDashboard.tableNumber')}</span>
+            <input
+              value={tableNumber}
+              onChange={(event) => setTableNumber(event.target.value)}
+              placeholder={t('adminDashboard.newTablePlaceholder')}
+              className="h-10 w-full rounded-md border border-black/10 px-3 text-sm outline-none focus:border-gold"
+            />
+          </label>
+        </div>
+
+        {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+        {confirmedRsvps.length === 0 ? (
+          <p className="mt-4 rounded-md bg-[#f6f4ef] p-4 text-sm text-muted">{t('adminDashboard.noConfirmedGuests')}</p>
+        ) : (
+          <>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                <input type="checkbox" checked={selectedIds.length === confirmedRsvps.length} onChange={toggleAll} />
+                {t('adminDashboard.selectAllGuests')}
+              </label>
+              <button
+                type="button"
+                onClick={() => void addSelected()}
+                disabled={saving || !tableNumber.trim() || !selectedIds.length}
+                className="inline-flex items-center gap-2 rounded-md bg-charcoal px-3 py-2 text-sm text-white hover:bg-black disabled:opacity-60"
+              >
+                <Plus className="h-4 w-4" />
+                {t('adminDashboard.addSelectedToTable', { count: selectedGuestTotal })}
+              </button>
+            </div>
+            <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {confirmedRsvps.map((rsvp) => (
+                <label key={rsvp.id} className="flex cursor-pointer items-center gap-3 rounded-md border border-black/10 px-3 py-2 text-sm hover:bg-[#fbfaf7]">
+                  <input type="checkbox" checked={selectedIds.includes(rsvp.id)} onChange={() => toggleRsvp(rsvp.id)} />
+                  <span className="min-w-0 flex-1 truncate font-medium">{rsvp.full_name}</span>
+                  <span className="text-xs text-muted">{t('adminDashboard.tableGuestTotal', { count: rsvp.guest_count })}</span>
+                </label>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      <ManualSeatingPanel assignments={assignments} onAdd={onAdd} onDelete={onDelete} compact />
+
+      <section className="rounded-lg border border-black/10 bg-white">
+        <div className="border-b border-black/10 px-4 py-3">
+          <h2 className="text-sm font-semibold">{t('adminDashboard.tableOverview')}</h2>
+        </div>
+        {tables.length === 0 ? (
+          <p className="m-4 rounded-md bg-[#f6f4ef] p-4 text-sm text-muted">{t('adminDashboard.noManualSeating')}</p>
+        ) : (
+          <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
+            {tables.map(([number, guests]) => (
+              <article key={number} className="rounded-lg border border-black/10 bg-[#fbfaf7]">
+                <div className="flex items-center justify-between border-b border-black/10 px-3 py-2">
+                  <h3 className="font-semibold">{t('adminDashboard.tableLabel', { number })}</h3>
+                  <span className="text-xs text-muted">{t('adminDashboard.tableGuestTotal', { count: guests.length })}</span>
+                </div>
+                <ul className="divide-y divide-black/10">
+                  {guests.map((guest) => <li key={guest.id} className="px-3 py-2 text-sm">{guest.full_name}</li>)}
+                </ul>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </section>
+  );
+}
+
 function ManualSeatingPanel({
   assignments,
   onAdd,
   onDelete,
+  compact = false,
 }: {
   assignments: SeatingAssignment[];
   onAdd: (tableNumber: string, fullName: string) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
+  compact?: boolean;
 }) {
   const { t } = useTranslation();
   const [tableNumber, setTableNumber] = useState('');
@@ -488,9 +660,9 @@ function ManualSeatingPanel({
 
       {error && <p className="mx-4 mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
-      {assignments.length === 0 ? (
+      {!compact && assignments.length === 0 ? (
         <p className="m-4 rounded-md bg-[#f6f4ef] p-4 text-sm text-muted">{t('adminDashboard.noManualSeating')}</p>
-      ) : (
+      ) : !compact && (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="border-y border-black/10 bg-[#fbfaf7] text-xs uppercase text-muted">
