@@ -2,12 +2,19 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
-import { BookOpen, Camera, CheckCircle2, ChevronLeft, ImagePlus, MapPin, Search, UtensilsCrossed, UsersRound, X } from 'lucide-react';
+import { BookOpen, Camera, CheckCircle2, ChevronLeft, ImagePlus, MapPin, Search, UsersRound, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 
-type Tab = 'welcome' | 'table' | 'menu' | 'gallery';
-type MediaItem = { id: string; name: string; type: 'image' | 'video'; url: string };
+type Tab = 'welcome' | 'table' | 'gallery';
+type MediaItem = {
+  id: string;
+  name: string;
+  type: 'image' | 'video';
+  url: string;
+  uploadStatus: 'uploading' | 'uploaded' | 'error';
+  driveUrl?: string;
+};
 
 const LANGUAGE_KEY = 'special-day-language';
 
@@ -36,7 +43,6 @@ export function SpecialDayPage() {
   const tabs = useMemo(() => [
     { id: 'welcome' as const, label: t('specialDay.welcome'), icon: UsersRound },
     { id: 'table' as const, label: t('specialDay.table'), icon: MapPin },
-    { id: 'menu' as const, label: t('specialDay.menu'), icon: UtensilsCrossed },
     { id: 'gallery' as const, label: t('specialDay.gallery'), icon: Camera },
   ], [t]);
 
@@ -63,7 +69,7 @@ export function SpecialDayPage() {
     }
   };
 
-  const addMedia = (event: ChangeEvent<HTMLInputElement>) => {
+  const addMedia = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     const newItems = files
       .filter((file) => file.type.startsWith('image/') || file.type.startsWith('video/'))
@@ -72,9 +78,24 @@ export function SpecialDayPage() {
         name: file.name,
         type: file.type.startsWith('video/') ? 'video' as const : 'image' as const,
         url: URL.createObjectURL(file),
+        uploadStatus: 'uploading' as const,
+        file,
       }));
-    setMedia((current) => [...current, ...newItems]);
+    setMedia((current) => [...current, ...newItems.map(({ file: _file, ...item }) => item)]);
     event.target.value = '';
+
+    await Promise.all(newItems.map(async ({ id, file }) => {
+      try {
+        const uploaded = await api.uploadSpecialDayMedia(file);
+        setMedia((current) => current.map((item) => item.id === id ? {
+          ...item,
+          uploadStatus: 'uploaded',
+          driveUrl: uploaded.webViewLink,
+        } : item));
+      } catch {
+        setMedia((current) => current.map((item) => item.id === id ? { ...item, uploadStatus: 'error' } : item));
+      }
+    }));
   };
 
   const removeMedia = (id: string) => {
@@ -116,14 +137,13 @@ export function SpecialDayPage() {
         <p className="text-center text-xs font-semibold uppercase tracking-[0.28em] text-sage">{t('specialDay.title')}</p>
         <p className="mt-2 text-center font-serif text-2xl">{t('specialDay.subtitle')}</p>
 
-        <div className="mt-6 grid grid-cols-4 gap-2 rounded-2xl border border-gold/15 bg-white/80 p-2 shadow-sm">
+        <div className="mt-6 grid grid-cols-3 gap-2 rounded-2xl border border-gold/15 bg-white/80 p-2 shadow-sm">
           {tabs.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => setActiveTab(id)} className={`flex min-h-14 flex-col items-center justify-center rounded-xl px-1 text-[10px] font-semibold leading-tight transition ${activeTab === id ? 'bg-gold text-white shadow-sm' : 'text-muted hover:bg-gold/10 hover:text-gold'}`}><Icon className="mb-1 h-4 w-4" />{label}</button>)}
         </div>
 
         <section className="mt-5 overflow-hidden rounded-[1.75rem] border border-gold/15 bg-white p-6 shadow-[0_18px_45px_-35px_rgba(61,61,61,0.55)]">
           {activeTab === 'welcome' && <WelcomeCard t={t} />}
           {activeTab === 'table' && <TableCard t={t} name={name} setName={setName} isSearching={isSearching} guests={guests} lookupState={lookupState} onSubmit={findTable} />}
-          {activeTab === 'menu' && <MenuCard t={t} />}
           {activeTab === 'gallery' && <GalleryCard t={t} media={media} onAdd={addMedia} onRemove={removeMedia} />}
         </section>
       </section>
@@ -135,6 +155,4 @@ function WelcomeCard({ t }: { t: TFunction }) { return <div className="py-5 text
 
 function TableCard({ t, name, setName, isSearching, guests, lookupState, onSubmit }: { t: TFunction; name: string; setName: (name: string) => void; isSearching: boolean; guests: { fullName: string; tableNumber: string }[]; lookupState: 'idle' | 'empty' | 'error'; onSubmit: (event: React.FormEvent) => void }) { return <div><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sage/10 text-sage"><MapPin className="h-6 w-6" /></div><h2 className="mt-4 font-serif text-3xl">{t('specialDay.tableTitle')}</h2><p className="mt-2 text-sm leading-6 text-muted">{t('specialDay.tableText')}</p><form onSubmit={onSubmit} className="mt-5"><label className="relative block"><Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" /><input value={name} onChange={(event) => setName(event.target.value)} placeholder={t('specialDay.namePlaceholder')} className="h-[3.25rem] w-full rounded-2xl border border-gold/25 bg-cream pl-11 pr-4 text-sm outline-none focus:border-gold" /></label><button disabled={isSearching || !name.trim()} className="mt-3 inline-flex h-12 w-full items-center justify-center rounded-2xl bg-gold text-sm font-semibold text-white transition hover:bg-gold-light disabled:opacity-50">{isSearching ? t('specialDay.searching') : t('specialDay.findTable')}</button></form>{guests.map((guest) => <div key={`${guest.fullName}-${guest.tableNumber}`} className="mt-5 rounded-2xl bg-sage/10 p-4 text-center"><CheckCircle2 className="mx-auto h-6 w-6 text-sage" /><p className="mt-2 text-sm text-muted">{t('specialDay.tableResult', { name: guest.fullName })}</p><p className="mt-1 font-serif text-4xl text-sage-dark">{guest.tableNumber}</p></div>)}{lookupState !== 'idle' && <p className="mt-4 rounded-xl bg-cream p-3 text-center text-sm text-muted">{t(lookupState === 'error' ? 'specialDay.lookupError' : 'specialDay.noTable')}</p>}</div>; }
 
-function MenuCard({ t }: { t: TFunction }) { const courses = [['starter', 'starterText'], ['main', 'mainText'], ['dessert', 'dessertText'], ['drinks', 'drinksText']]; return <div><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gold/10 text-gold"><UtensilsCrossed className="h-6 w-6" /></div><h2 className="mt-4 font-serif text-3xl">{t('specialDay.menuTitle')}</h2><div className="mt-5 divide-y divide-gold/15">{courses.map(([title, text]) => <div key={title} className="py-4"><p className="font-serif text-xl text-gold">{t(`specialDay.${title}`)}</p><p className="mt-1 text-sm text-muted">{t(`specialDay.${text}`)}</p></div>)}</div><p className="mt-4 rounded-xl bg-cream px-4 py-3 text-xs leading-5 text-muted">{t('specialDay.menuNote')}</p></div>; }
-
-function GalleryCard({ t, media, onAdd, onRemove }: { t: TFunction; media: MediaItem[]; onAdd: (event: ChangeEvent<HTMLInputElement>) => void; onRemove: (id: string) => void }) { return <div><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gold/10 text-gold"><Camera className="h-6 w-6" /></div><h2 className="mt-4 font-serif text-3xl">{t('specialDay.galleryTitle')}</h2><p className="mt-2 text-sm leading-6 text-muted">{t('specialDay.galleryText')}</p><label className="mt-5 flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gold/30 bg-cream text-center text-gold transition hover:border-gold hover:bg-gold/5"><ImagePlus className="h-6 w-6" /><span className="mt-2 px-4 text-sm font-semibold">{t('specialDay.addMedia')}</span><input type="file" accept="image/*,video/*" multiple className="sr-only" onChange={onAdd} /></label>{media.length > 0 && <div className="mt-4 grid grid-cols-2 gap-3">{media.map((item) => <article key={item.id} className="relative overflow-hidden rounded-xl bg-charcoal"><button type="button" onClick={() => onRemove(item.id)} aria-label={t('specialDay.removeMedia')} className="absolute right-2 top-2 z-10 rounded-full bg-white/90 p-1 text-charcoal"><X className="h-3.5 w-3.5" /></button>{item.type === 'image' ? <img src={item.url} alt={item.name} className="aspect-square w-full object-cover" /> : <video src={item.url} controls className="aspect-square w-full object-cover" />}</article>)}</div>}<p className="mt-4 text-center text-xs leading-5 text-muted">{t('specialDay.mediaHint')}</p></div>; }
+function GalleryCard({ t, media, onAdd, onRemove }: { t: TFunction; media: MediaItem[]; onAdd: (event: ChangeEvent<HTMLInputElement>) => void; onRemove: (id: string) => void }) { return <div><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gold/10 text-gold"><Camera className="h-6 w-6" /></div><h2 className="mt-4 font-serif text-3xl">{t('specialDay.galleryTitle')}</h2><p className="mt-2 text-sm leading-6 text-muted">{t('specialDay.galleryText')}</p><label className="mt-5 flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gold/30 bg-cream text-center text-gold transition hover:border-gold hover:bg-gold/5"><ImagePlus className="h-6 w-6" /><span className="mt-2 px-4 text-sm font-semibold">{t('specialDay.addMedia')}</span><input type="file" accept="image/*,video/*" multiple className="sr-only" onChange={(event) => { void onAdd(event); }} /></label>{media.length > 0 && <div className="mt-4 grid grid-cols-2 gap-3">{media.map((item) => <article key={item.id} className="relative overflow-hidden rounded-xl bg-charcoal"><button type="button" onClick={() => onRemove(item.id)} aria-label={t('specialDay.removeMedia')} className="absolute right-2 top-2 z-10 rounded-full bg-white/90 p-1 text-charcoal"><X className="h-3.5 w-3.5" /></button>{item.type === 'image' ? <img src={item.url} alt={item.name} className="aspect-square w-full object-cover" /> : <video src={item.url} controls className="aspect-square w-full object-cover" />}<p className="absolute inset-x-0 bottom-0 bg-charcoal/75 px-2 py-1 text-center text-[10px] font-semibold text-white">{item.uploadStatus === 'uploading' ? t('specialDay.uploading') : item.uploadStatus === 'uploaded' ? t('specialDay.uploaded') : t('specialDay.uploadError')}</p></article>)}</div>}<p className="mt-4 text-center text-xs leading-5 text-muted">{t('specialDay.mediaHint')}</p></div>; }

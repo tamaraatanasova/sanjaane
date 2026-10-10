@@ -138,7 +138,10 @@ export const mk = {
     galleryTitle: 'Споделете спомени',
     galleryText: 'Изберете фотографии или видеа од вашиот телефон и веднаш прегледајте ги тука.',
     addMedia: 'Додај фотографии или видеа',
-    mediaHint: 'Заедничко прикачување ќе се поврзе откако ќе се постави галерија.',
+    mediaHint: 'Фотографиите и видеата автоматски се зачувуваат во заедничката галерија.',
+    uploading: 'Се прикачува...',
+    uploaded: 'Зачувано',
+    uploadError: 'Неуспешно прикачување',
     removeMedia: 'Отстрани',
   },
   admin: {
@@ -408,7 +411,10 @@ export const hr = {
     galleryTitle: 'Podijelite uspomene',
     galleryText: 'Odaberite fotografije ili videe s telefona i odmah ih pogledajte ovdje.',
     addMedia: 'Dodaj fotografije ili videe',
-    mediaHint: 'Zajedničko učitavanje povezat ćemo nakon postavljanja galerije.',
+    mediaHint: 'Fotografije i videozapisi automatski se spremaju u zajedničku galeriju.',
+    uploading: 'Učitavanje...',
+    uploaded: 'Spremljeno',
+    uploadError: 'Učitavanje nije uspjelo',
     removeMedia: 'Ukloni',
   },
   admin: {

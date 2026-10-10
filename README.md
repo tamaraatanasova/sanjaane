@@ -70,6 +70,28 @@ npm run build
 npm run preview
 ```
 
+## Google Drive gallery uploads
+
+The `/poseben-den` gallery sends images and videos to a private Supabase Edge
+Function, which then stores them in Google Drive. The browser never receives
+the Google service-account key.
+
+Before deploying, share the Drive folder with the service account as **Editor**.
+Then, from the project root, authenticate the Supabase CLI and deploy the
+function with these two secrets:
+
+```bash
+npx supabase login
+npx supabase link --project-ref fpdphxphuecijflpgyqy
+npx supabase secrets set GOOGLE_DRIVE_FOLDER_ID=1u89ktO9Uee0BfFULeNHx-HVkuPPOhvpj
+npx supabase secrets set GOOGLE_SERVICE_ACCOUNT_JSON='PASTE_THE_COMPLETE_SERVICE_ACCOUNT_JSON_HERE'
+npx supabase functions deploy upload-to-google-drive
+```
+
+Create/download the JSON key in Google Cloud under the service account's
+**Keys** section. Keep it private: do not add it to the repository, client
+environment variables, or a chat message.
+
 The app is a static Vite build in `client/dist` and talks directly to Supabase.
 
 ## Tech Stack

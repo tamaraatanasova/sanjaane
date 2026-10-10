@@ -75,6 +75,12 @@ export interface AuthUser {
   role: 'admin';
 }
 
+export interface DriveUpload {
+  id: string;
+  name: string;
+  webViewLink?: string;
+}
+
 const HARDCODED_ADMIN_EMAIL = 'sanja@admin.com';
 const HARDCODED_ADMIN_PASSWORD = 'sanja';
 const ADMIN_SESSION_STORAGE_KEY = 'admin-auth-session';
@@ -182,6 +188,19 @@ async function getAllRsvps() {
 }
 
 export const api = {
+  async uploadSpecialDayMedia(file: File): Promise<DriveUpload> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const { data, error } = await supabase.functions.invoke('upload-to-google-drive', {
+      body: formData,
+    });
+
+    if (error) throw new Error(error.message);
+    if (!data?.id || !data?.name) throw new Error('Upload failed.');
+    return data as DriveUpload;
+  },
+
   async getSeatingAssignments(): Promise<SeatingAssignment[]> {
     const { data, error } = await supabase
       .from('seating_assignments')
