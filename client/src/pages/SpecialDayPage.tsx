@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
-import { Camera, ChevronLeft, ImagePlus, X } from 'lucide-react';
+import { Camera, ChevronLeft, ImagePlus, Languages, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 
@@ -16,7 +16,7 @@ type MediaItem = {
 };
 
 export function SpecialDayPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [media, setMedia] = useState<MediaItem[]>([]);
   const mediaRef = useRef<MediaItem[]>([]);
 
@@ -66,7 +66,24 @@ export function SpecialDayPage() {
         <div className="mx-auto flex max-w-lg items-center justify-between">
           <Link to="/" className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted transition hover:bg-gold/10 hover:text-gold" aria-label="Back"><ChevronLeft className="h-5 w-5" /></Link>
           <div className="text-center"><p className="font-serif text-xl text-gold">Sanja & Angelcho</p><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-sage">10 · 10 · 2026</p></div>
-          <span className="h-10 w-10" />
+          <div className="flex rounded-full border border-gold/25 bg-white p-1 shadow-sm" role="group" aria-label={t('specialDay.changeLanguage')}>
+            <Languages className="my-auto ml-1 h-3.5 w-3.5 text-gold" aria-hidden="true" />
+            {(['mk', 'hr'] as const).map((language) => (
+              <button
+                key={language}
+                type="button"
+                onClick={() => { void i18n.changeLanguage(language); }}
+                aria-pressed={i18n.language.startsWith(language)}
+                className={`rounded-full px-2 py-1 text-[10px] font-bold transition ${
+                  i18n.language.startsWith(language)
+                    ? 'bg-gold text-white shadow-sm'
+                    : 'text-muted hover:bg-gold/10 hover:text-gold'
+                }`}
+              >
+                {language.toUpperCase()}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
