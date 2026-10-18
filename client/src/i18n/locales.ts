@@ -409,7 +409,7 @@ export const hr = {
     drinksText: 'Vino, bezalkoholna pića i kava',
     menuNote: 'Meni ćemo dopuniti točnim jelima.',
     galleryTitle: 'Podijelite uspomene',
-    galleryText: 'Odaberite fotografije ili videe s telefona i odmah ih pogledajte ovdje.',
+    galleryText: 'Odaberite fotografije ili videozapise iz vaše galerije i dodajte ih ovdje.',
     addMedia: 'Dodaj fotografije ili videe',
     mediaHint: 'Fotografije i videozapisi automatski se spremaju u zajedničku galeriju.',
     uploading: 'Učitavanje...',
