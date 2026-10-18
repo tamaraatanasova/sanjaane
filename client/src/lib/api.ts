@@ -196,7 +196,20 @@ export const api = {
       body: formData,
     });
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      // The Functions client wraps a non-2xx response and otherwise hides the
+      // JSON body returned by the Edge Function. Read it so the UI can show
+      // the actionable Drive configuration error instead of a generic 500.
+      const response = (error as { context?: Response }).context;
+      if (response instanceof Response) {
+        let body: { error?: unknown } | undefined;
+        try {
+          body = await response.clone().json() as { error?: unknown };
+        } catch { /* Keep the SDK error when the response is not JSON. */ }
+        if (typeof body?.error === 'string') throw new Error(body.error);
+      }
+      throw new Error(error.message);
+    }
     if (!data?.id || !data?.name) throw new Error('Upload failed.');
     return data as DriveUpload;
   },

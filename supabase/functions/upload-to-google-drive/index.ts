@@ -3,80 +3,51 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const MAX_FILE_SIZE = 30 * 1024 * 1024;
 
-type ServiceAccount = {
-  client_email: string;
-  private_key: string;
-  token_uri?: string;
-};
+async function getAccessToken() {
+  const clientId = Deno.env.get('GOOGLE_OAUTH_CLIENT_ID');
+  const clientSecret = Deno.env.get('GOOGLE_OAUTH_CLIENT_SECRET');
+  const refreshToken = Deno.env.get('GOOGLE_OAUTH_REFRESH_TOKEN');
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error('Google OAuth is not configured. Add GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, and GOOGLE_OAUTH_REFRESH_TOKEN.');
+  }
 
-function base64Url(value: ArrayBuffer | Uint8Array | string) {
-  const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : new Uint8Array(value);
-  let binary = '';
-  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
-  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
-}
-
-function privateKeyBytes(privateKey: string) {
-  const body = privateKey.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
-  const binary = atob(body);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-}
-
-async function getAccessToken(account: ServiceAccount) {
-  const now = Math.floor(Date.now() / 1000);
-  const tokenUri = account.token_uri ?? 'https://oauth2.googleapis.com/token';
-  const header = base64Url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
-  const claims = base64Url(JSON.stringify({
-    iss: account.client_email,
-    scope: DRIVE_SCOPE,
-    aud: tokenUri,
-    iat: now,
-    exp: now + 3600,
-  }));
-  const key = await crypto.subtle.importKey(
-    'pkcs8',
-    privateKeyBytes(account.private_key),
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  const signed = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(`${header}.${claims}`));
-  const assertion = `${header}.${claims}.${base64Url(signed)}`;
-  const response = await fetch(tokenUri, {
+  const response = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion,
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
     }),
   });
   const data = await response.json();
-  if (!response.ok || !data.access_token) throw new Error('Google Drive authentication failed.');
+  if (!response.ok || !data.access_token) {
+    throw new Error(data.error_description ?? data.error ?? 'Google OAuth token refresh failed.');
+  }
   return data.access_token as string;
 }
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  if (request.method !== 'POST') return new Response(JSON.stringify({ error: 'Method not allowed.' }), { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  if (request.method !== 'POST') return Response.json({ error: 'Method not allowed.' }, { status: 405, headers: corsHeaders });
 
   try {
-    const accountJson = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON');
     const folderId = Deno.env.get('GOOGLE_DRIVE_FOLDER_ID');
-    if (!accountJson || !folderId) throw new Error('Google Drive upload is not configured.');
+    if (!folderId) throw new Error('Google Drive upload is not configured. Add GOOGLE_DRIVE_FOLDER_ID.');
 
     const formData = await request.formData();
     const file = formData.get('file');
-    if (!(file instanceof File) || !file.type.startsWith('image/') && !file.type.startsWith('video/')) {
-      return new Response(JSON.stringify({ error: 'Please upload an image or video.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (!(file instanceof File) || (!file.type.startsWith('image/') && !file.type.startsWith('video/'))) {
+      return Response.json({ error: 'Please upload an image or video.' }, { status: 400, headers: corsHeaders });
     }
     if (file.size > MAX_FILE_SIZE) {
-      return new Response(JSON.stringify({ error: 'The file is larger than 30 MB.' }), { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return Response.json({ error: 'The file is larger than 30 MB.' }, { status: 413, headers: corsHeaders });
     }
 
-    const token = await getAccessToken(JSON.parse(accountJson) as ServiceAccount);
+    const token = await getAccessToken();
     const boundary = `drive-upload-${crypto.randomUUID()}`;
     const metadata = JSON.stringify({ name: file.name, parents: [folderId] });
     const body = new Blob([
@@ -93,9 +64,9 @@ Deno.serve(async (request) => {
     const data = await upload.json();
     if (!upload.ok) throw new Error(data.error?.message ?? 'Google Drive upload failed.');
 
-    return new Response(JSON.stringify(data), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return Response.json(data, { headers: corsHeaders });
   } catch (error) {
     console.error(error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Upload failed.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return Response.json({ error: error instanceof Error ? error.message : 'Upload failed.' }, { status: 500, headers: corsHeaders });
   }
 });
